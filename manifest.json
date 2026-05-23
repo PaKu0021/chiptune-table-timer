@@ -1,0 +1,15 @@
+{
+  "name": "Chiptune 桌位计时器",
+  "short_name": "桌位计时器",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f7f3ea",
+  "theme_color": "#f2c94c",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
