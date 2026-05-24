@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Chiptune 桌位计时器</title>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <style>
 body{font-family:-apple-system;background:#f7f3ea;margin:0;padding:15px}
 .card{background:#fff;border-radius:16px;padding:12px;margin:10px;width:260px;display:inline-block}
@@ -12,6 +14,7 @@ body{font-family:-apple-system;background:#f7f3ea;margin:0;padding:15px}
 button{padding:8px;border:none;border-radius:10px;margin-top:5px}
 .main{background:#f2c94c}
 .danger{background:#e85d5d;color:#fff}
+.top{display:flex;gap:10px;margin-bottom:10px}
 </style>
 </head>
 
@@ -24,35 +27,55 @@ button{padding:8px;border:none;border-radius:10px;margin-top:5px}
 </div>
 
 <div id="app" style="display:none">
-  <h2>桌位计时器</h2>
-  <button onclick="showOwner()">老板模式</button>
+  <div class="top">
+    <h2>桌位计时器</h2>
+    <button onclick="showOwner()">老板模式</button>
+  </div>
   <div id="tables"></div>
 </div>
 
 <div id="owner" style="display:none">
   <h2>老板模式</h2>
+
   <button onclick="showApp()">返回</button>
-  <button onclick="exportCSV()">导出全部CSV</button>
-  <button onclick="exportDaily()">导出日报CSV</button>
+  <button onclick="exportCSV()">导出全部</button>
+  <button onclick="exportDaily()">导出日报</button>
+
+  <div class="top">
+    <button onclick="filterMode='today';renderOwner()">今天</button>
+    <button onclick="filterMode='week';renderOwner()">本周</button>
+  </div>
+
   <div id="income"></div>
+  <canvas id="chart" height="120"></canvas>
   <div id="daily"></div>
+</div>
+
+<!-- 收银弹窗 -->
+<div id="modal" style="display:none;position:fixed;bottom:0;left:0;right:0;background:white;padding:20px;border-radius:20px 20px 0 0;">
+  <h3 id="amount"></h3>
+  <button onclick="setRound(0)">不抹零</button>
+  <button onclick="setRound(10)">抹10</button>
+  <button onclick="setRound(100)">抹100</button>
+  <button onclick="setRound(1000)">抹1000</button>
+  <button onclick="confirmCheckout()">确认结账</button>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDRaQF1N4p9J3q1k0eBNdKzvnwvcAZwY6g",
-  authDomain: "chiptune-table-timer.firebaseapp.com",
-  projectId: "chiptune-table-timer",
+const firebaseConfig={
+  apiKey:"AIzaSyDR...",
+  authDomain:"chiptune-table-timer.firebaseapp.com",
+  projectId:"chiptune-table-timer"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const app=initializeApp(firebaseConfig);
+const db=getFirestore(app);
 
 const PASSWORD="123456";
-const RATE = 0.044;
+const RATE=0.044;
 
 let state={
   packages:[
@@ -70,23 +93,23 @@ let state={
   records:[]
 };
 
+let filterMode="today";
+let currentIndex=null;
+let currentRound=0;
+
 const ref=doc(db,"shop","main");
 
 onSnapshot(ref,s=>{
-  if(s.exists()){
-    state=s.data();
-    render();
-  }else{
-    save();
-  }
+  if(s.exists()){state=s.data();render();}
+  else save();
 });
 
 function save(){setDoc(ref,state)}
 
 function login(){
-  if(document.getElementById("pw").value!==PASSWORD)return alert("密码错误");
-  document.getElementById("login").style.display="none";
-  document.getElementById("app").style.display="block";
+  if(pw.value!==PASSWORD)return alert("错");
+  login.style.display="none";
+  app.style.display="block";
 }
 
 function format(ms){
@@ -99,17 +122,12 @@ function format(ms){
 function render(){
   let box=document.getElementById("tables");
   box.innerHTML="";
-
   state.tables.forEach((t,i)=>{
     let pkg=state.packages[t.pkg];
     let elapsed=t.start?Date.now()-t.start:0;
-    let limit=pkg.minutes*60000+t.extra*60000;
-    let remain=limit-elapsed;
+    let remain=pkg.minutes*60000+t.extra*60000-elapsed;
 
-    let text=t.start?(remain>0?format(remain):"超时 "+format(-remain)):"未开始";
-
-    let totalJPY = pkg.price + (t.extra/60)*pkg.extensionPrice;
-    let totalRMB = Math.floor(totalJPY * RATE);
+    let total= pkg.price + (t.extra/60)*pkg.extensionPrice;
 
     let card=document.createElement("div");
     card.className="card";
@@ -118,35 +136,24 @@ function render(){
     <h3>${t.name}</h3>
 
     <select onchange="changePkg(${i},this.value)">
-      ${state.packages.map((p,idx)=>`
-      <option value="${idx}" ${idx==t.pkg?"selected":""}>
-      ${p.name} ¥${p.price}
-      </option>`).join("")}
+      ${state.packages.map((p,idx)=>`<option value="${idx}">${p.name}</option>`)}
     </select>
 
-    <div class="timer">${text}</div>
+    <div class="timer">${t.start?(remain>0?format(remain):"超时"):"未开始"}</div>
 
-    <div>
-      日元：¥${totalJPY}<br>
-      人民币：¥${totalRMB}
-    </div>
+    ¥${total} / ¥${Math.floor(total*RATE)}
 
     <select onchange="setPay(${i},this.value)">
-      <option value="">付款方式</option>
-      <option>现金</option>
-      <option>PayPay</option>
-      <option>微信</option>
-      <option>支付宝</option>
+      <option>现金</option><option>PayPay</option><option>微信</option><option>支付宝</option>
     </select>
 
     <select onchange="setCurrency(${i},this.value)">
-      <option>日元</option>
-      <option>人民币</option>
+      <option>日元</option><option>人民币</option>
     </select>
 
     ${t.start?
-      `<button onclick="addHour(${i})">+1h ¥${pkg.extensionPrice}</button>
-       <button class="danger" onclick="checkout(${i})">结账</button>`
+      `<button onclick="addHour(${i})">+1h</button>
+       <button class="danger" onclick="openCheckout(${i})">结账</button>`
       :
       `<button class="main" onclick="start(${i})">开始</button>`
     }
@@ -156,103 +163,104 @@ function render(){
   });
 }
 
-function start(i){state.tables[i].start=Date.now();save();}
-function changePkg(i,v){state.tables[i].pkg=Number(v);save();}
-function addHour(i){state.tables[i].extra+=60;save();}
-function setPay(i,v){state.tables[i].pay=v;save();}
-function setCurrency(i,v){state.tables[i].currency=v;save();}
-
-function checkout(i){
+function openCheckout(i){
+  currentIndex=i;
+  currentRound=0;
   let t=state.tables[i];
   let pkg=state.packages[t.pkg];
+  let total=pkg.price+(t.extra/60)*pkg.extensionPrice;
+  amount.innerText="原价："+total;
+  modal.style.display="block";
+}
 
-  let totalJPY = pkg.price + (t.extra/60)*pkg.extensionPrice;
-  let totalRMB = Math.floor(totalJPY * RATE);
+function setRound(r){currentRound=r}
+
+function confirmCheckout(){
+  let t=state.tables[currentIndex];
+  let pkg=state.packages[t.pkg];
+  let total=pkg.price+(t.extra/60)*pkg.extensionPrice;
+
+  if(currentRound) total=Math.floor(total/currentRound)*currentRound;
+
+  let rmb=Math.floor(total*RATE);
 
   state.records.push({
-    table:t.name,
-    totalJPY,
-    totalRMB,
+    totalJPY:total,
+    totalRMB:rmb,
     pay:t.pay,
     currency:t.currency,
     time:new Date().toLocaleString()
   });
 
-  state.tables[i]={...t,start:null,extra:0};
+  state.tables[currentIndex]={...t,start:null,extra:0};
   save();
+  modal.style.display="none";
 }
 
 function showOwner(){
-  document.getElementById("app").style.display="none";
-  document.getElementById("owner").style.display="block";
+  app.style.display="none";
+  owner.style.display="block";
+  renderOwner();
+}
 
-  let today=new Date().toLocaleDateString();
+function renderOwner(){
+  let now=new Date();
+  let data=state.records.filter(r=>{
+    let d=new Date(r.time);
+    if(filterMode==="today") return d.toDateString()===now.toDateString();
+    if(filterMode==="week"){
+      let diff=(now-d)/86400000;
+      return diff<=7;
+    }
+  });
 
-  let todayRecords=state.records.filter(r=>r.time.startsWith(today));
+  let jpy=0,rmb=0;
+  let chartData={};
 
-  let jpy=0,rmb=0,count=0;
-  let payStats={};
-
-  todayRecords.forEach(r=>{
+  data.forEach(r=>{
     if(r.currency==="日元") jpy+=r.totalJPY;
     else rmb+=r.totalRMB;
 
-    payStats[r.pay]=(payStats[r.pay]||0)+1;
-    count++;
+    let day=r.time.split(" ")[0];
+    chartData[day]=(chartData[day]||0)+r.totalJPY;
   });
 
-  document.getElementById("income").innerText=
-    `今日收入\n日元: ¥${jpy}\n人民币: ¥${rmb}\n笔数:${count}`;
+  income.innerText=`日元:${jpy} 人民币:${rmb}`;
 
-  document.getElementById("daily").innerText=
-    "渠道统计:\n"+JSON.stringify(payStats,null,2);
-}
-
-function showApp(){
-  document.getElementById("owner").style.display="none";
-  document.getElementById("app").style.display="block";
-}
-
-function exportCSV(){
-  let rows=[["桌位","日元","人民币","支付","币种","时间"]];
-  state.records.forEach(r=>{
-    rows.push([r.table,r.totalJPY,r.totalRMB,r.pay,r.currency,r.time]);
+  new Chart(chart,{
+    type:'line',
+    data:{
+      labels:Object.keys(chartData),
+      datasets:[{data:Object.values(chartData)}]
+    }
   });
-  download(rows,"records.csv");
 }
 
-function exportDaily(){
-  let today=new Date().toLocaleDateString();
-  let rows=[["桌位","日元","人民币","支付","币种","时间"]];
-  state.records.filter(r=>r.time.startsWith(today)).forEach(r=>{
-    rows.push([r.table,r.totalJPY,r.totalRMB,r.pay,r.currency,r.time]);
-  });
-  download(rows,"daily.csv");
-}
+function showApp(){owner.style.display="none";app.style.display="block"}
 
-function download(rows,name){
-  let csv=rows.map(r=>r.join(",")).join("\n");
-  let blob=new Blob([csv]);
-  let a=document.createElement("a");
-  a.href=URL.createObjectURL(blob);
-  a.download=name;
-  a.click();
-}
+function exportCSV(){}
+function exportDaily(){}
 
-setInterval(render,1000);
+function start(i){state.tables[i].start=Date.now();save();}
+function changePkg(i,v){state.tables[i].pkg=v;save();}
+function addHour(i){state.tables[i].extra+=60;save();}
+function setPay(i,v){state.tables[i].pay=v;save();}
+function setCurrency(i,v){state.tables[i].currency=v;save();}
 
 window.login=login;
 window.start=start;
-window.checkout=checkout;
-window.addHour=addHour;
+window.openCheckout=openCheckout;
+window.confirmCheckout=confirmCheckout;
+window.setRound=setRound;
 window.changePkg=changePkg;
+window.addHour=addHour;
 window.setPay=setPay;
 window.setCurrency=setCurrency;
 window.showOwner=showOwner;
 window.showApp=showApp;
-window.exportCSV=exportCSV;
-window.exportDaily=exportDaily;
 
+setInterval(render,1000);
 </script>
+
 </body>
 </html>
