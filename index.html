@@ -2,265 +2,793 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Chiptune 桌位计时器</title>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <style>
-body{font-family:-apple-system;background:#f7f3ea;margin:0;padding:15px}
-.card{background:#fff;border-radius:16px;padding:12px;margin:10px;width:260px;display:inline-block}
-.timer{font-size:26px;text-align:center}
-button{padding:8px;border:none;border-radius:10px;margin-top:5px}
-.main{background:#f2c94c}
-.danger{background:#e85d5d;color:#fff}
-.top{display:flex;gap:10px;margin-bottom:10px}
+:root{
+  --bg:#f7f3ea;--card:#fffaf2;--main:#f2c94c;--main-dark:#d8a900;
+  --text:#332d24;--muted:#8a8174;--line:#e6dccb;--danger:#e85d5d;
+  --ok:#54a66b;--shadow:0 8px 24px rgba(80,60,30,.12);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--text);padding:18px}
+button,select,input{font-size:16px;border-radius:12px;border:1px solid var(--line);padding:10px 12px;background:#fff}
+button{font-weight:700;cursor:pointer}
+.btn-main{background:var(--main);border-color:var(--main-dark)}
+.btn-danger{background:var(--danger);border-color:var(--danger);color:#fff}
+.btn-ghost{background:#fff}
+.login{max-width:380px;margin:90px auto;background:var(--card);padding:24px;border-radius:24px;box-shadow:var(--shadow);text-align:center}
+.login input{width:100%;margin:12px 0}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
+h1{margin:0;font-size:26px}.sub{color:var(--muted);font-size:13px;margin-top:4px}
+.top-buttons{display:flex;gap:8px;flex-wrap:wrap}
+.page{display:none}
+.tables{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:16px;box-shadow:var(--shadow)}
+.card.overtime{background:#fff0f0;border-color:var(--danger)}
+.table-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.table-name{font-size:22px;font-weight:800}
+.status{font-size:13px;padding:5px 9px;border-radius:999px;background:#eee;color:var(--muted)}
+.status.running{background:#e9f7ed;color:var(--ok)}
+.status.overtime{background:var(--danger);color:#fff}
+.timer{font-size:36px;font-weight:900;text-align:center;margin:14px 0 6px}
+.overtime-text{color:var(--danger)}
+.info{text-align:center;color:var(--muted);font-size:14px;min-height:22px;margin-bottom:12px}
+.price{text-align:center;font-size:17px;font-weight:800;margin-top:10px;line-height:1.7}
+select{width:100%;margin-top:8px}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.full{grid-column:1/-1}
+.owner-panel{background:var(--card);border-radius:22px;padding:16px;box-shadow:var(--shadow);margin-bottom:14px}
+.setting-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px}
+.setting-grid input{width:100%}
+.record-table{width:100%;border-collapse:collapse;background:#fff;border-radius:14px;overflow:hidden}
+.record-table th,.record-table td{border-bottom:1px solid var(--line);padding:8px;font-size:13px;text-align:left}
+label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:999}
+.modal{position:absolute;left:0;right:0;bottom:0;background:#fffaf2;border-radius:24px 24px 0 0;padding:20px;box-shadow:0 -10px 40px rgba(0,0,0,.25)}
+.round-buttons{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}
+canvas{width:100%;height:220px;background:#fff;border-radius:16px;border:1px solid var(--line)}
+@media(max-width:640px){
+  body{padding:12px}
+  header{flex-direction:column;align-items:flex-start}
+  .setting-grid{grid-template-columns:1fr}
+  .timer{font-size:32px}
+}
 </style>
 </head>
 
 <body>
 
-<div id="login">
-  <h2>输入密码</h2>
-  <input id="pw" type="password">
-  <button onclick="login()">进入</button>
+<div id="loginPage" class="login">
+  <h2>Chiptune 桌位计时器</h2>
+  <p class="sub">请输入店铺密码</p>
+  <input id="passwordInput" type="password" placeholder="店铺密码">
+  <button class="btn-main" onclick="login()">进入系统</button>
 </div>
 
-<div id="app" style="display:none">
-  <div class="top">
-    <h2>桌位计时器</h2>
-    <button onclick="showOwner()">老板模式</button>
+<div id="mainPage" class="page">
+  <header>
+    <div>
+      <h1>Chiptune 桌位计时器</h1>
+      <div class="sub">多设备同步｜套餐计时｜续费｜收银记录</div>
+    </div>
+    <div class="top-buttons">
+      <button class="btn-ghost" onclick="showOwner()">老板模式</button>
+      <button class="btn-main" onclick="addTable()">＋ 添加桌位</button>
+    </div>
+  </header>
+  <main class="tables" id="tables"></main>
+</div>
+
+<div id="ownerPage" class="page">
+  <header>
+    <div>
+      <h1>老板模式</h1>
+      <div class="sub">设置套餐、查看收银、导出记录、日报统计</div>
+    </div>
+    <div class="top-buttons">
+      <button class="btn-ghost" onclick="showMain()">返回计时器</button>
+      <button class="btn-main" onclick="exportRecords('all')">导出全部CSV</button>
+      <button class="btn-main" onclick="exportRecords(currentFilter)">导出当前筛选CSV</button>
+    </div>
+  </header>
+
+  <div class="owner-panel">
+    <button class="btn-main" onclick="setFilter('today')">今天</button>
+    <button class="btn-ghost" onclick="setFilter('week')">本周</button>
+    <button class="btn-ghost" onclick="setFilter('all')">全部</button>
+    <h2 id="summaryText">统计加载中</h2>
+    <div id="payStats"></div>
   </div>
-  <div id="tables"></div>
-</div>
 
-<div id="owner" style="display:none">
-  <h2>老板模式</h2>
-
-  <button onclick="showApp()">返回</button>
-  <button onclick="exportCSV()">导出全部</button>
-  <button onclick="exportDaily()">导出日报</button>
-
-  <div class="top">
-    <button onclick="filterMode='today';renderOwner()">今天</button>
-    <button onclick="filterMode='week';renderOwner()">本周</button>
+  <div class="owner-panel">
+    <h2>收入折线图</h2>
+    <canvas id="incomeChart" width="900" height="260"></canvas>
   </div>
 
-  <div id="income"></div>
-  <canvas id="chart" height="120"></canvas>
-  <div id="daily"></div>
+  <div class="owner-panel">
+    <h2>桌位数量</h2>
+    <input id="tableCountInput" type="number" min="1" max="50">
+    <button class="btn-main" onclick="saveTableCount()">保存桌位数量</button>
+  </div>
+
+  <div class="owner-panel">
+    <h2>套餐设置</h2>
+    <p class="sub">续费金额按套餐设置，例如 3小时续费1小时900，5500套餐续费1小时800。</p>
+    <div id="packageSettings"></div>
+    <button class="btn-main" onclick="addPackageSetting()">＋ 添加套餐</button>
+    <button class="btn-main" onclick="saveSettings()">保存套餐设置</button>
+  </div>
+
+  <div class="owner-panel">
+    <h2>收银记录</h2>
+    <div id="recordsBox"></div>
+  </div>
 </div>
 
-<!-- 收银弹窗 -->
-<div id="modal" style="display:none;position:fixed;bottom:0;left:0;right:0;background:white;padding:20px;border-radius:20px 20px 0 0;">
-  <h3 id="amount"></h3>
-  <button onclick="setRound(0)">不抹零</button>
-  <button onclick="setRound(10)">抹10</button>
-  <button onclick="setRound(100)">抹100</button>
-  <button onclick="setRound(1000)">抹1000</button>
-  <button onclick="confirmCheckout()">确认结账</button>
+<div id="checkoutModalBg" class="modal-bg">
+  <div class="modal">
+    <h2>结账确认</h2>
+    <div id="checkoutInfo"></div>
+    <h3 id="checkoutAmount"></h3>
+
+    <div class="round-buttons">
+      <button onclick="setRound(0)">不抹零</button>
+      <button onclick="setRound(10)">抹10</button>
+      <button onclick="setRound(100)">抹100</button>
+      <button onclick="setRound(1000)">抹1000</button>
+    </div>
+
+    <button class="btn-main full" onclick="confirmCheckout()">确认结账</button>
+    <button class="btn-ghost full" onclick="closeCheckout()">取消</button>
+  </div>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
 
-const firebaseConfig={
-  apiKey:"AIzaSyDR...",
-  authDomain:"chiptune-table-timer.firebaseapp.com",
-  projectId:"chiptune-table-timer"
+const firebaseConfig = {
+  apiKey: "AIzaSyDRaQF1N4p9J3q1k0eBNdKzvnwvcAZwY6g",
+  authDomain: "chiptune-table-timer.firebaseapp.com",
+  projectId: "chiptune-table-timer",
+  storageBucket: "chiptune-table-timer.firebasestorage.app",
+  messagingSenderId: "524748960844",
+  appId: "1:524748960844:web:958f11454796be7366f0e9",
+  measurementId: "G-68TF8QWDT9"
 };
 
-const app=initializeApp(firebaseConfig);
-const db=getFirestore(app);
+const PASSWORD = "123456";
+const RATE = 0.044;
 
-const PASSWORD="123456";
-const RATE=0.044;
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const mainRef = doc(db, "shop", "main");
 
-let state={
-  packages:[
-    {name:"3小时",minutes:180,price:3300,extensionPrice:900},
-    {name:"6小时",minutes:360,price:5500,extensionPrice:800}
-  ],
-  tables:Array.from({length:6},(_,i)=>({
-    name:(i+1)+"号桌",
-    start:null,
-    pkg:0,
-    extra:0,
+let state = null;
+let started = false;
+let currentCheckoutIndex = null;
+let currentRound = 0;
+let currentFilter = "today";
+
+function newTable(num){
+  return {
+    name:`${num}号桌`,
+    packageIndex:0,
+    status:"idle",
+    startTime:null,
+    pausedTotalMs:0,
+    pauseStartTime:null,
+    extraMinutes:0,
     pay:"",
-    currency:"日元"
-  })),
+    currency:"日元",
+    alerted:false
+  };
+}
+
+const defaultState = {
+  packages:[
+    {name:"1小时",minutes:60,price:1500,extensionPrice:900},
+    {name:"2小时",minutes:120,price:2800,extensionPrice:900},
+    {name:"3小时",minutes:180,price:3300,extensionPrice:900},
+    {name:"6小时",minutes:360,price:5500,extensionPrice:800},
+    {name:"不限时",minutes:0,price:5500,extensionPrice:800}
+  ],
+  tables:Array.from({length:12},(_,i)=>newTable(i+1)),
   records:[]
 };
 
-let filterMode="today";
-let currentIndex=null;
-let currentRound=0;
-
-const ref=doc(db,"shop","main");
-
-onSnapshot(ref,s=>{
-  if(s.exists()){state=s.data();render();}
-  else save();
-});
-
-function save(){setDoc(ref,state)}
-
 function login(){
-  if(pw.value!==PASSWORD)return alert("错");
-  login.style.display="none";
-  app.style.display="block";
+  const pw = document.getElementById("passwordInput").value;
+  if(pw !== PASSWORD){
+    alert("密码错误");
+    return;
+  }
+  localStorage.setItem("chiptune_login","1");
+  document.getElementById("loginPage").style.display="none";
+  document.getElementById("mainPage").style.display="block";
+  initFirebase();
 }
 
-function format(ms){
-  let s=Math.floor(ms/1000);
-  let m=Math.floor(s/60);
-  let h=Math.floor(m/60);
-  return `${h}:${m%60}:${s%60}`;
-}
+function initFirebase(){
+  if(started) return;
+  started = true;
 
-function render(){
-  let box=document.getElementById("tables");
-  box.innerHTML="";
-  state.tables.forEach((t,i)=>{
-    let pkg=state.packages[t.pkg];
-    let elapsed=t.start?Date.now()-t.start:0;
-    let remain=pkg.minutes*60000+t.extra*60000-elapsed;
-
-    let total= pkg.price + (t.extra/60)*pkg.extensionPrice;
-
-    let card=document.createElement("div");
-    card.className="card";
-
-    card.innerHTML=`
-    <h3>${t.name}</h3>
-
-    <select onchange="changePkg(${i},this.value)">
-      ${state.packages.map((p,idx)=>`<option value="${idx}">${p.name}</option>`)}
-    </select>
-
-    <div class="timer">${t.start?(remain>0?format(remain):"超时"):"未开始"}</div>
-
-    ¥${total} / ¥${Math.floor(total*RATE)}
-
-    <select onchange="setPay(${i},this.value)">
-      <option>现金</option><option>PayPay</option><option>微信</option><option>支付宝</option>
-    </select>
-
-    <select onchange="setCurrency(${i},this.value)">
-      <option>日元</option><option>人民币</option>
-    </select>
-
-    ${t.start?
-      `<button onclick="addHour(${i})">+1h</button>
-       <button class="danger" onclick="openCheckout(${i})">结账</button>`
-      :
-      `<button class="main" onclick="start(${i})">开始</button>`
+  onSnapshot(mainRef, async snap=>{
+    if(snap.exists()){
+      state = snap.data();
+      normalizeState();
+      renderAll();
+    }else{
+      state = structuredClone(defaultState);
+      await save();
     }
-    `;
+  });
+}
 
+function normalizeState(){
+  if(!state.packages) state.packages = structuredClone(defaultState.packages);
+  if(!state.tables) state.tables = structuredClone(defaultState.tables);
+  if(!state.records) state.records = [];
+
+  state.packages.forEach(p=>{
+    if(p.extensionPrice === undefined) p.extensionPrice = 900;
+  });
+
+  state.tables.forEach((t,i)=>{
+    if(t.packageIndex === undefined && t.pkg !== undefined) t.packageIndex = Number(t.pkg);
+    if(t.startTime === undefined && t.start !== undefined) t.startTime = t.start;
+    if(t.status === undefined) t.status = t.startTime ? "running" : "idle";
+    if(t.pausedTotalMs === undefined) t.pausedTotalMs = 0;
+    if(t.pauseStartTime === undefined) t.pauseStartTime = null;
+    if(t.extraMinutes === undefined && t.extra !== undefined) t.extraMinutes = Number(t.extra || 0);
+    if(t.extraMinutes === undefined) t.extraMinutes = 0;
+    if(t.pay === undefined) t.pay = "";
+    if(t.currency === undefined) t.currency = "日元";
+    if(t.alerted === undefined) t.alerted = false;
+    if(!t.name) t.name = `${i+1}号桌`;
+  });
+}
+
+async function save(){
+  await setDoc(mainRef,state);
+}
+
+function formatTime(ms){
+  ms=Math.max(0,ms);
+  const total=Math.floor(ms/1000);
+  const h=Math.floor(total/3600);
+  const m=Math.floor((total%3600)/60);
+  const s=total%60;
+  return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+}
+
+function formatDate(ts){
+  const d = ts ? new Date(ts) : new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}
+
+function dateKey(ts){
+  const d = ts ? new Date(ts) : new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+function getElapsedMs(t){
+  if(!t.startTime) return 0;
+  const end = t.status === "paused" ? t.pauseStartTime : Date.now();
+  return Math.max(0,end - t.startTime - (t.pausedTotalMs || 0));
+}
+
+function getPackage(t){
+  return state.packages[t.packageIndex] || state.packages[0];
+}
+
+function getLimitMs(t){
+  const p=getPackage(t);
+  if(Number(p.minutes)===0) return Infinity;
+  return (Number(p.minutes) + Number(t.extraMinutes || 0)) * 60000;
+}
+
+function getOriginalJPY(t){
+  const p=getPackage(t);
+  return Number(p.price || 0) + (Number(t.extraMinutes || 0) / 60) * Number(p.extensionPrice || 0);
+}
+
+function getRMB(jpy){
+  return Math.floor(Number(jpy || 0) * RATE);
+}
+
+function renderTables(){
+  if(!state) return;
+  const box=document.getElementById("tables");
+  box.innerHTML="";
+
+  state.tables.forEach((t,i)=>{
+    const p=getPackage(t);
+    const elapsed=getElapsedMs(t);
+    const remain=getLimitMs(t)-elapsed;
+    const isUnlimited=Number(p.minutes)===0;
+    const isOver=t.status==="running" && !isUnlimited && remain<=0;
+
+    if(isOver && !t.alerted){
+      t.alerted=true;
+      save();
+      playAlert();
+      setTimeout(()=>alert(`${t.name} 已超时！`),50);
+    }
+
+    let timer="00:00:00";
+    let info="未开始";
+    if(t.status==="running" || t.status==="paused"){
+      if(isUnlimited){
+        timer=formatTime(elapsed);
+        info=`已使用时间｜${p.name}`;
+      }else if(remain>=0){
+        timer=formatTime(remain);
+        info=`剩余时间｜${p.name}`;
+      }else{
+        timer=`超时 ${formatTime(Math.abs(remain))}`;
+        info=`已使用 ${formatTime(elapsed)}｜${p.name}`;
+      }
+    }
+
+    const originalJPY=getOriginalJPY(t);
+    const rmb=getRMB(originalJPY);
+
+    const card=document.createElement("div");
+    card.className=`card ${isOver?"overtime":""}`;
+    card.innerHTML=`
+      <div class="table-head">
+        <div class="table-name">${t.name}</div>
+        <div class="status ${isOver?"overtime":t.status==="running"?"running":""}">
+          ${t.status==="idle"?"空闲":isOver?"已超时":t.status==="paused"?"暂停中":"计时中"}
+        </div>
+      </div>
+
+      <select onchange="changePackage(${i},this.value)" ${t.status!=="idle"?"disabled":""}>
+        ${state.packages.map((p,idx)=>`
+          <option value="${idx}" ${idx===t.packageIndex?"selected":""}>
+            ${p.name}｜${p.minutes==0?"不限时":p.minutes+"分钟"}｜¥${p.price}
+          </option>
+        `).join("")}
+      </select>
+
+      <div class="timer ${isOver?"overtime-text":""}">${timer}</div>
+      <div class="info">${info}</div>
+
+      <div class="price">
+        日元金额：¥${originalJPY.toLocaleString()}<br>
+        人民币金额：¥${rmb.toLocaleString()}<br>
+        续费：${t.extraMinutes || 0}分钟 / 1小时¥${p.extensionPrice}
+      </div>
+
+      <select onchange="setPay(${i},this.value)">
+        <option value="">付款渠道</option>
+        <option value="现金" ${t.pay==="现金"?"selected":""}>现金</option>
+        <option value="PayPay" ${t.pay==="PayPay"?"selected":""}>PayPay</option>
+        <option value="微信" ${t.pay==="微信"?"selected":""}>微信</option>
+        <option value="支付宝" ${t.pay==="支付宝"?"selected":""}>支付宝</option>
+      </select>
+
+      <select onchange="setCurrency(${i},this.value)">
+        <option value="日元" ${t.currency==="日元"?"selected":""}>日元</option>
+        <option value="人民币" ${t.currency==="人民币"?"selected":""}>人民币</option>
+      </select>
+
+      <div class="controls">
+        ${t.status==="idle"?`<button class="btn-main full" onclick="startTable(${i})">开始计时</button>`:""}
+        ${t.status==="running"?`<button class="btn-ghost" onclick="pauseTable(${i})">暂停</button>`:""}
+        ${t.status==="paused"?`<button class="btn-main" onclick="resumeTable(${i})">继续</button>`:""}
+        ${t.status!=="idle"?`
+          <button class="btn-ghost" onclick="addHour(${i})">续费1小时<br>¥${p.extensionPrice}</button>
+          <button class="btn-danger" onclick="openCheckout(${i})">结账</button>
+        `:`<button class="btn-ghost full" onclick="renameTable(${i})">修改桌名</button>`}
+      </div>
+    `;
     box.appendChild(card);
   });
 }
 
-function openCheckout(i){
-  currentIndex=i;
-  currentRound=0;
-  let t=state.tables[i];
-  let pkg=state.packages[t.pkg];
-  let total=pkg.price+(t.extra/60)*pkg.extensionPrice;
-  amount.innerText="原价："+total;
-  modal.style.display="block";
-}
+function renderOwner(){
+  if(!state) return;
+  document.getElementById("tableCountInput").value=state.tables.length;
 
-function setRound(r){currentRound=r}
+  renderPackageSettings();
 
-function confirmCheckout(){
-  let t=state.tables[currentIndex];
-  let pkg=state.packages[t.pkg];
-  let total=pkg.price+(t.extra/60)*pkg.extensionPrice;
-
-  if(currentRound) total=Math.floor(total/currentRound)*currentRound;
-
-  let rmb=Math.floor(total*RATE);
-
-  state.records.push({
-    totalJPY:total,
-    totalRMB:rmb,
-    pay:t.pay,
-    currency:t.currency,
-    time:new Date().toLocaleString()
+  const records=getFilteredRecords(currentFilter);
+  let jpy=0,rmb=0,count=records.length;
+  const payStats={};
+  records.forEach(r=>{
+    if(r.currency==="人民币") rmb+=Number(r.totalRMB||0);
+    else jpy+=Number(r.totalJPY||0);
+    const key=r.pay || "未记录";
+    payStats[key]=(payStats[key]||0)+1;
   });
 
-  state.tables[currentIndex]={...t,start:null,extra:0};
-  save();
-  modal.style.display="none";
+  document.getElementById("summaryText").innerHTML =
+    `${filterName(currentFilter)}｜日元：¥${jpy.toLocaleString()}｜人民币：¥${rmb.toLocaleString()}｜笔数：${count}`;
+
+  document.getElementById("payStats").innerHTML =
+    Object.keys(payStats).map(k=>`${k}：${payStats[k]}笔`).join("　") || "暂无记录";
+
+  renderChart(records);
+  renderRecords(records);
+}
+
+function renderPackageSettings(){
+  const box=document.getElementById("packageSettings");
+  box.innerHTML="";
+  state.packages.forEach((p,i)=>{
+    const row=document.createElement("div");
+    row.className="setting-grid";
+    row.innerHTML=`
+      <div><label>套餐名</label><input value="${p.name}" data-pkg-name="${i}"></div>
+      <div><label>分钟 0=不限时</label><input type="number" value="${p.minutes}" data-pkg-minutes="${i}"></div>
+      <div><label>套餐金额</label><input type="number" value="${p.price}" data-pkg-price="${i}"></div>
+      <div><label>续费1小时金额</label><input type="number" value="${p.extensionPrice}" data-pkg-extension="${i}"></div>
+      <button class="btn-danger" onclick="removePackageSetting(${i})">删除</button>
+    `;
+    box.appendChild(row);
+  });
+}
+
+function getFilteredRecords(mode){
+  const now=new Date();
+  return state.records.filter(r=>{
+    const d=new Date(r.timestamp || r.time || r.date);
+    if(isNaN(d.getTime())) return mode==="all";
+    if(mode==="today") return dateKey(d.getTime())===dateKey();
+    if(mode==="week"){
+      const diff=(now-d)/86400000;
+      return diff>=0 && diff<7;
+    }
+    return true;
+  });
+}
+
+function filterName(mode){
+  if(mode==="today") return "今天";
+  if(mode==="week") return "本周";
+  return "全部";
+}
+
+function renderRecords(records){
+  const rows=[...records].reverse().slice(0,150);
+  document.getElementById("recordsBox").innerHTML=`
+    <table class="record-table">
+      <thead>
+        <tr><th>时间</th><th>桌位</th><th>套餐</th><th>续费</th><th>抹零</th><th>渠道</th><th>币种</th><th>金额</th></tr>
+      </thead>
+      <tbody>
+        ${rows.map(r=>`
+          <tr>
+            <td>${r.time || r.date || ""}</td>
+            <td>${r.tableName || r.table || ""}</td>
+            <td>${r.packageName || r.pkg || ""}</td>
+            <td>${r.extraMinutes || r.extensionMinutes || 0}分 / ¥${r.extensionAmount || r.extraPrice || 0}</td>
+            <td>${r.roundUnit || r.round || 0}</td>
+            <td>${r.pay || ""}</td>
+            <td>${r.currency || ""}</td>
+            <td>${r.currency==="人民币" ? "¥"+(r.totalRMB||0) : "¥"+(r.totalJPY||0)}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderChart(records){
+  const canvas=document.getElementById("incomeChart");
+  const ctx=canvas.getContext("2d");
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  const daily={};
+  records.forEach(r=>{
+    const d=new Date(r.timestamp || r.time || r.date);
+    const key=isNaN(d.getTime()) ? "未知" : dateKey(d.getTime());
+    const amount = r.currency==="人民币" ? Number(r.totalRMB||0) : Number(r.totalJPY||0);
+    daily[key]=(daily[key]||0)+amount;
+  });
+
+  const labels=Object.keys(daily).sort();
+  const values=labels.map(k=>daily[k]);
+
+  ctx.fillStyle="#8a8174";
+  ctx.font="18px -apple-system";
+  if(!labels.length){
+    ctx.fillText("暂无数据",30,60);
+    return;
+  }
+
+  const max=Math.max(...values,1);
+  const pad=45;
+  const w=canvas.width-pad*2;
+  const h=canvas.height-pad*2;
+
+  ctx.strokeStyle="#e6dccb";
+  ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(pad,pad);
+  ctx.lineTo(pad,pad+h);
+  ctx.lineTo(pad+w,pad+h);
+  ctx.stroke();
+
+  ctx.strokeStyle="#d8a900";
+  ctx.lineWidth=4;
+  ctx.beginPath();
+
+  labels.forEach((label,i)=>{
+    const x=pad + (labels.length===1 ? w/2 : i*w/(labels.length-1));
+    const y=pad+h-(values[i]/max*h);
+    if(i===0) ctx.moveTo(x,y);
+    else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+
+  ctx.fillStyle="#332d24";
+  labels.forEach((label,i)=>{
+    const x=pad + (labels.length===1 ? w/2 : i*w/(labels.length-1));
+    const y=pad+h-(values[i]/max*h);
+    ctx.beginPath();
+    ctx.arc(x,y,5,0,Math.PI*2);
+    ctx.fill();
+    ctx.font="14px -apple-system";
+    ctx.fillText(values[i],x-15,y-12);
+  });
+}
+
+function renderAll(){
+  renderTables();
+  if(document.getElementById("ownerPage").style.display==="block") renderOwner();
+}
+
+async function startTable(i){
+  const t=state.tables[i];
+  t.status="running";
+  t.startTime=Date.now();
+  t.pausedTotalMs=0;
+  t.pauseStartTime=null;
+  t.extraMinutes=0;
+  t.alerted=false;
+  await save();
+}
+
+async function pauseTable(i){
+  const t=state.tables[i];
+  t.status="paused";
+  t.pauseStartTime=Date.now();
+  await save();
+}
+
+async function resumeTable(i){
+  const t=state.tables[i];
+  if(t.pauseStartTime) t.pausedTotalMs += Date.now()-t.pauseStartTime;
+  t.status="running";
+  t.pauseStartTime=null;
+  await save();
+}
+
+async function addHour(i){
+  state.tables[i].extraMinutes = Number(state.tables[i].extraMinutes || 0) + 60;
+  state.tables[i].alerted=false;
+  await save();
+}
+
+function openCheckout(i){
+  currentCheckoutIndex=i;
+  currentRound=0;
+  updateCheckoutAmount();
+  document.getElementById("checkoutModalBg").style.display="block";
+}
+
+function setRound(unit){
+  currentRound=unit;
+  updateCheckoutAmount();
+}
+
+function updateCheckoutAmount(){
+  const t=state.tables[currentCheckoutIndex];
+  const p=getPackage(t);
+  const original=getOriginalJPY(t);
+  const rounded=currentRound ? Math.floor(original/currentRound)*currentRound : original;
+  const rmb=getRMB(rounded);
+
+  document.getElementById("checkoutInfo").innerHTML =
+    `${t.name}｜${p.name}<br>付款渠道：${t.pay || "未选择"}｜币种：${t.currency}`;
+  document.getElementById("checkoutAmount").innerHTML =
+    `原价：¥${original.toLocaleString()}<br>结账日元：¥${rounded.toLocaleString()}<br>人民币：¥${rmb.toLocaleString()}`;
+}
+
+async function confirmCheckout(){
+  const i=currentCheckoutIndex;
+  const t=state.tables[i];
+  const p=getPackage(t);
+
+  if(!t.pay){
+    alert("请选择付款渠道");
+    return;
+  }
+
+  const originalJPY=getOriginalJPY(t);
+  const finalJPY=currentRound ? Math.floor(originalJPY/currentRound)*currentRound : originalJPY;
+  const totalRMB=getRMB(finalJPY);
+
+  state.records.push({
+    timestamp:Date.now(),
+    time:formatDate(Date.now()),
+    tableName:t.name,
+    packageName:p.name,
+    packageMinutes:p.minutes==0?"不限时":p.minutes,
+    packagePrice:Number(p.price||0),
+    extraMinutes:Number(t.extraMinutes||0),
+    extensionAmount:(Number(t.extraMinutes||0)/60)*Number(p.extensionPrice||0),
+    originalJPY,
+    totalJPY:finalJPY,
+    totalRMB,
+    roundUnit:currentRound,
+    pay:t.pay,
+    currency:t.currency
+  });
+
+  state.tables[i]={...t,status:"idle",startTime:null,pausedTotalMs:0,pauseStartTime:null,extraMinutes:0,alerted:false};
+  await save();
+  closeCheckout();
+}
+
+function closeCheckout(){
+  document.getElementById("checkoutModalBg").style.display="none";
+}
+
+async function changePackage(i,val){
+  state.tables[i].packageIndex=Number(val);
+  await save();
+}
+
+async function setPay(i,val){
+  state.tables[i].pay=val;
+  await save();
+}
+
+async function setCurrency(i,val){
+  state.tables[i].currency=val;
+  await save();
+}
+
+async function renameTable(i){
+  const name=prompt("请输入桌位名称",state.tables[i].name);
+  if(!name) return;
+  state.tables[i].name=name.trim();
+  await save();
+}
+
+async function addTable(){
+  state.tables.push(newTable(state.tables.length+1));
+  await save();
 }
 
 function showOwner(){
-  app.style.display="none";
-  owner.style.display="block";
+  document.getElementById("mainPage").style.display="none";
+  document.getElementById("ownerPage").style.display="block";
   renderOwner();
 }
 
-function renderOwner(){
-  let now=new Date();
-  let data=state.records.filter(r=>{
-    let d=new Date(r.time);
-    if(filterMode==="today") return d.toDateString()===now.toDateString();
-    if(filterMode==="week"){
-      let diff=(now-d)/86400000;
-      return diff<=7;
-    }
-  });
-
-  let jpy=0,rmb=0;
-  let chartData={};
-
-  data.forEach(r=>{
-    if(r.currency==="日元") jpy+=r.totalJPY;
-    else rmb+=r.totalRMB;
-
-    let day=r.time.split(" ")[0];
-    chartData[day]=(chartData[day]||0)+r.totalJPY;
-  });
-
-  income.innerText=`日元:${jpy} 人民币:${rmb}`;
-
-  new Chart(chart,{
-    type:'line',
-    data:{
-      labels:Object.keys(chartData),
-      datasets:[{data:Object.values(chartData)}]
-    }
-  });
+function showMain(){
+  document.getElementById("ownerPage").style.display="none";
+  document.getElementById("mainPage").style.display="block";
 }
 
-function showApp(){owner.style.display="none";app.style.display="block"}
+function setFilter(mode){
+  currentFilter=mode;
+  renderOwner();
+}
 
-function exportCSV(){}
-function exportDaily(){}
+async function saveTableCount(){
+  const count=Number(document.getElementById("tableCountInput").value||state.tables.length);
+  if(count>state.tables.length){
+    for(let i=state.tables.length;i<count;i++) state.tables.push(newTable(i+1));
+  }else if(count<state.tables.length){
+    if(state.tables.slice(count).some(t=>t.status!=="idle") && !confirm("删除范围内有正在计时桌位，确定删除吗？")) return;
+    state.tables=state.tables.slice(0,count);
+  }
+  await save();
+}
 
-function start(i){state.tables[i].start=Date.now();save();}
-function changePkg(i,v){state.tables[i].pkg=v;save();}
-function addHour(i){state.tables[i].extra+=60;save();}
-function setPay(i,v){state.tables[i].pay=v;save();}
-function setCurrency(i,v){state.tables[i].currency=v;save();}
+function addPackageSetting(){
+  state.packages.push({name:"新套餐",minutes:60,price:0,extensionPrice:0});
+  renderOwner();
+}
+
+function removePackageSetting(i){
+  if(state.packages.length<=1) return alert("至少保留一个套餐");
+  state.packages.splice(i,1);
+  state.tables.forEach(t=>{if(t.packageIndex>=state.packages.length)t.packageIndex=0;});
+  renderOwner();
+}
+
+async function saveSettings(){
+  state.packages=state.packages.map((p,i)=>({
+    name:document.querySelector(`[data-pkg-name="${i}"]`).value || "未命名套餐",
+    minutes:Number(document.querySelector(`[data-pkg-minutes="${i}"]`).value || 0),
+    price:Number(document.querySelector(`[data-pkg-price="${i}"]`).value || 0),
+    extensionPrice:Number(document.querySelector(`[data-pkg-extension="${i}"]`).value || 0)
+  }));
+  await save();
+  alert("已保存");
+}
+
+function exportRecords(mode){
+  const records = mode==="all" ? state.records : getFilteredRecords(mode);
+  if(!records.length) return alert("暂无记录");
+
+  const headers=["时间","桌位","套餐","套餐时间","套餐金额","续费时间","续费金额","原价日元","抹零单位","结账日元","结账人民币","付款渠道","币种"];
+  const rows=records.map(r=>[
+    r.time || r.date || "",
+    r.tableName || r.table || "",
+    r.packageName || r.pkg || "",
+    r.packageMinutes || "",
+    r.packagePrice || r.pkgPrice || "",
+    r.extraMinutes || r.extensionMinutes || r.extra || 0,
+    r.extensionAmount || r.extraPrice || 0,
+    r.originalJPY || r.totalJPY || "",
+    r.roundUnit || r.round || 0,
+    r.totalJPY || "",
+    r.totalRMB || "",
+    r.pay || "",
+    r.currency || ""
+  ]);
+
+  const csv=[headers,...rows].map(row=>row.map(c=>`"${String(c??"").replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=`chiptune_records_${mode}_${dateKey()}.csv`;
+  a.click();
+}
+
+function playAlert(){
+  try{
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.frequency.value=880;g.gain.value=.2;o.connect(g);g.connect(ctx.destination);o.start();
+    setTimeout(()=>{o.stop();ctx.close();},700);
+  }catch(e){}
+}
+
+setInterval(()=>{
+  const active=document.activeElement;
+  if(active && active.tagName==="SELECT") return;
+  renderTables();
+},1000);
 
 window.login=login;
-window.start=start;
-window.openCheckout=openCheckout;
-window.confirmCheckout=confirmCheckout;
-window.setRound=setRound;
-window.changePkg=changePkg;
+window.startTable=startTable;
+window.pauseTable=pauseTable;
+window.resumeTable=resumeTable;
 window.addHour=addHour;
+window.openCheckout=openCheckout;
+window.setRound=setRound;
+window.confirmCheckout=confirmCheckout;
+window.closeCheckout=closeCheckout;
+window.changePackage=changePackage;
 window.setPay=setPay;
 window.setCurrency=setCurrency;
+window.renameTable=renameTable;
+window.addTable=addTable;
 window.showOwner=showOwner;
-window.showApp=showApp;
+window.showMain=showMain;
+window.setFilter=setFilter;
+window.saveTableCount=saveTableCount;
+window.addPackageSetting=addPackageSetting;
+window.removePackageSetting=removePackageSetting;
+window.saveSettings=saveSettings;
+window.exportRecords=exportRecords;
 
-setInterval(render,1000);
+if(localStorage.getItem("chiptune_login")==="1"){
+  document.getElementById("loginPage").style.display="none";
+  document.getElementById("mainPage").style.display="block";
+  initFirebase();
+}
 </script>
-
 </body>
 </html>
