@@ -1,719 +1,478 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="桌位计时器" />
-  <link rel="manifest" href="manifest.json" />
-  <title>Chiptune 桌位计时器</title>
-
-  <style>
-    :root {
-      --bg: #f7f3ea;
-      --card: #fffaf2;
-      --main: #f2c94c;
-      --main-dark: #d8a900;
-      --text: #3a3328;
-      --muted: #8a8174;
-      --danger: #e85d5d;
-      --danger-bg: #fff0f0;
-      --ok: #54a66b;
-      --line: #e6dccb;
-      --shadow: 0 8px 24px rgba(80, 60, 30, 0.12);
-    }
-
-    * {
-      box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      padding: 18px;
-    }
-
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 18px;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: 26px;
-    }
-
-    .sub {
-      color: var(--muted);
-      font-size: 13px;
-      margin-top: 4px;
-    }
-
-    button, select, input {
-      font-size: 16px;
-      border-radius: 12px;
-      border: 1px solid var(--line);
-      padding: 10px 12px;
-      background: white;
-    }
-
-    button {
-      cursor: pointer;
-      font-weight: 700;
-    }
-
-    .btn-main {
-      background: var(--main);
-      border-color: var(--main-dark);
-      color: #3a2a00;
-    }
-
-    .btn-danger {
-      background: var(--danger);
-      border-color: var(--danger);
-      color: white;
-    }
-
-    .btn-ghost {
-      background: white;
-      color: var(--text);
-    }
-
-    .top-buttons {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .tables {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 14px;
-    }
-
-    .card {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 22px;
-      padding: 16px;
-      box-shadow: var(--shadow);
-      position: relative;
-    }
-
-    .card.overtime {
-      background: var(--danger-bg);
-      border-color: var(--danger);
-      animation: pulse 1.2s infinite;
-    }
-
-    @keyframes pulse {
-      0% { box-shadow: 0 0 0 rgba(232, 93, 93, 0.1); }
-      50% { box-shadow: 0 0 22px rgba(232, 93, 93, 0.38); }
-      100% { box-shadow: 0 0 0 rgba(232, 93, 93, 0.1); }
-    }
-
-    .table-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-    }
-
-    .table-name {
-      font-size: 22px;
-      font-weight: 800;
-    }
-
-    .status {
-      font-size: 13px;
-      padding: 5px 9px;
-      border-radius: 999px;
-      background: #eee;
-      color: var(--muted);
-    }
-
-    .status.running {
-      background: #e9f7ed;
-      color: var(--ok);
-    }
-
-    .status.overtime {
-      background: var(--danger);
-      color: white;
-    }
-
-    .timer {
-      font-size: 38px;
-      font-weight: 900;
-      text-align: center;
-      margin: 14px 0 6px;
-      letter-spacing: 1px;
-    }
-
-    .timer.overtime-text {
-      color: var(--danger);
-    }
-
-    .info {
-      text-align: center;
-      color: var(--muted);
-      font-size: 14px;
-      min-height: 22px;
-      margin-bottom: 12px;
-    }
-
-    .controls {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-top: 10px;
-    }
-
-    .full {
-      grid-column: 1 / -1;
-    }
-
-    .package-row {
-      display: flex;
-      gap: 8px;
-      margin-top: 8px;
-    }
-
-    .package-row select {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .price {
-      text-align: center;
-      font-size: 18px;
-      font-weight: 800;
-      margin-top: 10px;
-    }
-
-    dialog {
-      width: min(720px, calc(100vw - 28px));
-      border: none;
-      border-radius: 24px;
-      padding: 0;
-      box-shadow: 0 20px 80px rgba(0,0,0,0.25);
-      background: var(--card);
-      color: var(--text);
-    }
-
-    dialog::backdrop {
-      background: rgba(0,0,0,0.35);
-    }
-
-    .modal {
-      padding: 20px;
-    }
-
-    .modal h2 {
-      margin: 0 0 12px;
-    }
-
-    .setting-block {
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 12px;
-      margin-bottom: 12px;
-      background: white;
-    }
-
-    .setting-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr auto;
-      gap: 8px;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-
-    .setting-grid input {
-      width: 100%;
-    }
-
-    .modal-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 14px;
-    }
-
-    label {
-      font-size: 13px;
-      color: var(--muted);
-      display: block;
-      margin-bottom: 4px;
-    }
-
-    .small {
-      font-size: 13px;
-      color: var(--muted);
-      line-height: 1.5;
-    }
-
-    @media (max-width: 640px) {
-      body {
-        padding: 12px;
-      }
-
-      header {
-        align-items: flex-start;
-        flex-direction: column;
-      }
-
-      h1 {
-        font-size: 22px;
-      }
-
-      .timer {
-        font-size: 34px;
-      }
-
-      .setting-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Chiptune 桌位计时器</title>
+<style>
+:root{
+  --bg:#f7f3ea;--card:#fffaf2;--main:#f2c94c;--main-dark:#d8a900;
+  --text:#332d24;--muted:#8a8174;--line:#e6dccb;--danger:#e85d5d;
+  --ok:#54a66b;--shadow:0 8px 24px rgba(80,60,30,.12);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--text);padding:18px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
+h1{margin:0;font-size:26px}.sub{color:var(--muted);font-size:13px;margin-top:4px}
+button,select,input{font-size:16px;border-radius:12px;border:1px solid var(--line);padding:10px 12px;background:#fff}
+button{cursor:pointer;font-weight:700}.btn-main{background:var(--main);border-color:var(--main-dark)}.btn-danger{background:var(--danger);border-color:var(--danger);color:#fff}.btn-ghost{background:#fff}
+.top-buttons{display:flex;gap:8px;flex-wrap:wrap}.tables{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:16px;box-shadow:var(--shadow)}
+.card.overtime{background:#fff0f0;border-color:var(--danger)}
+.table-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.table-name{font-size:22px;font-weight:800}
+.status{font-size:13px;padding:5px 9px;border-radius:999px;background:#eee;color:var(--muted)}.status.running{background:#e9f7ed;color:var(--ok)}.status.overtime{background:var(--danger);color:#fff}
+.timer{font-size:38px;font-weight:900;text-align:center;margin:14px 0 6px}.timer.overtime-text{color:var(--danger)}
+.info{text-align:center;color:var(--muted);font-size:14px;min-height:22px;margin-bottom:12px}
+.package-row{display:flex;gap:8px;margin-top:8px}.package-row select{flex:1;min-width:0}
+.price{text-align:center;font-size:17px;font-weight:800;margin-top:10px;line-height:1.7}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.full{grid-column:1/-1}
+dialog{width:min(760px,calc(100vw - 28px));border:none;border-radius:24px;padding:0;box-shadow:0 20px 80px rgba(0,0,0,.25);background:var(--card)}
+dialog::backdrop{background:rgba(0,0,0,.35)}.modal{padding:20px}.modal h2{margin:0 0 12px}
+.setting-block{border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:12px;background:#fff}
+.setting-grid{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px}.setting-grid input{width:100%}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:14px}
+label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}.small{font-size:13px;color:var(--muted);line-height:1.5}
+@media(max-width:640px){body{padding:12px}header{align-items:flex-start;flex-direction:column}h1{font-size:22px}.timer{font-size:34px}.setting-grid{grid-template-columns:1fr}}
+</style>
 </head>
-
 <body>
-  <header>
-    <div>
-      <h1>Chiptune 桌位计时器</h1>
-      <div class="sub">关屏、切后台、刷新后，会按真实时间继续计算。</div>
+<header>
+  <div>
+    <h1>Chiptune 桌位计时器</h1>
+    <div class="sub">关屏、切后台、刷新后，会按真实时间继续计算。</div>
+  </div>
+  <div class="top-buttons">
+    <button class="btn-ghost" onclick="openSettings()">设置</button>
+    <button class="btn-ghost" onclick="exportRecords()">导出收银记录</button>
+    <button class="btn-main" onclick="addTable()">＋ 添加桌位</button>
+  </div>
+</header>
+<main class="tables" id="tables"></main>
+<dialog id="settingsDialog">
+  <div class="modal">
+    <h2>设置</h2>
+    <div class="setting-block">
+      <label>桌位数量</label>
+      <input id="tableCountInput" type="number" min="1" max="50">
     </div>
-    <div class="top-buttons">
-      <button class="btn-ghost" onclick="openSettings()">设置</button>
-      <button class="btn-main" onclick="addTable()">＋ 添加桌位</button>
+    <div class="setting-block">
+      <label>套餐设置</label>
+      <div id="packageSettings"></div>
+      <button class="btn-main" onclick="addPackageSetting()">＋ 添加套餐</button>
     </div>
-  </header>
-
-  <main class="tables" id="tables"></main>
-
-  <dialog id="settingsDialog">
-    <div class="modal">
-      <h2>设置</h2>
-
-      <div class="setting-block">
-        <label>桌位数量</label>
-        <input id="tableCountInput" type="number" min="1" max="50" />
-      </div>
-
-      <div class="setting-block">
-        <label>超时提醒</label>
-        <div class="small">
-          倒计时结束后会弹窗、桌卡变红，并播放提示音。iPad 静音或浏览器限制时，声音可能不会播放。
-        </div>
-      </div>
-
-      <div class="setting-block">
-        <label>套餐设置</label>
-        <div id="packageSettings"></div>
-        <button class="btn-main" onclick="addPackageSetting()">＋ 添加套餐</button>
-      </div>
-
-      <div class="modal-actions">
-        <button class="btn-ghost" onclick="closeSettings()">取消</button>
-        <button class="btn-main" onclick="saveSettings()">保存设置</button>
-      </div>
+    <div class="setting-block">
+      <label>续费设置</label>
+      <div class="small">例如：续费 60 分钟 / ¥800。每桌可多次续费，结账记录会自动统计。</div>
+      <div id="extensionSettings"></div>
+      <button class="btn-main" onclick="addExtensionSetting()">＋ 添加续费选项</button>
     </div>
-  </dialog>
-
-  <script>
-    const STORAGE_KEY = "chiptune_table_timer_v1";
-
-    const defaultPackages = [
-      { name: "1小时", minutes: 60, price: 1500 },
-      { name: "2小时", minutes: 120, price: 2800 },
-      { name: "3小时", minutes: 180, price: 3300 },
-      { name: "6小时", minutes: 360, price: 5500 },
-      { name: "不限时", minutes: 0, price: 5500 }
-    ];
-
-    let state = loadState();
-
-    function loadState() {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch (e) {}
-      }
-
-      return {
-        packages: defaultPackages,
-        tables: Array.from({ length: 12 }, (_, i) => ({
-          id: Date.now() + i,
-          name: `${i + 1}号桌`,
-          packageIndex: 0,
-          status: "idle",
-          startTime: null,
-          pausedTotalMs: 0,
-          pauseStartTime: null,
-          extraMinutes: 0,
-          alerted: false
-        }))
-      };
-    }
-
-    function saveState() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    }
-
-    function formatTime(ms) {
-      ms = Math.max(0, ms);
-      const totalSec = Math.floor(ms / 1000);
-      const h = Math.floor(totalSec / 3600);
-      const m = Math.floor((totalSec % 3600) / 60);
-      const s = totalSec % 60;
-      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-    }
-
-    function getTableMs(table) {
-      if (!table.startTime) return 0;
-
-      const now = Date.now();
-      let end = table.status === "paused" ? table.pauseStartTime : now;
-      return Math.max(0, end - table.startTime - table.pausedTotalMs);
-    }
-
-    function getLimitMs(table) {
-      const pkg = state.packages[table.packageIndex];
-      if (!pkg || Number(pkg.minutes) === 0) return Infinity;
-      return (Number(pkg.minutes) + Number(table.extraMinutes || 0)) * 60 * 1000;
-    }
-
-    function getRemainingMs(table) {
-      return getLimitMs(table) - getTableMs(table);
-    }
-
-    function getPrice(table) {
-      const pkg = state.packages[table.packageIndex];
-      return pkg ? Number(pkg.price || 0) : 0;
-    }
-
-    function render() {
-      const container = document.getElementById("tables");
-      container.innerHTML = "";
-
-      state.tables.forEach((table, index) => {
-        const pkg = state.packages[table.packageIndex] || state.packages[0];
-        const elapsed = getTableMs(table);
-        const remaining = getRemainingMs(table);
-        const isUnlimited = pkg && Number(pkg.minutes) === 0;
-        const isOvertime = table.status === "running" && !isUnlimited && remaining <= 0;
-
-        if (isOvertime && !table.alerted) {
-          table.alerted = true;
-          saveState();
-          playAlert();
-          setTimeout(() => {
-            alert(`${table.name} 已超时！`);
-          }, 50);
-        }
-
-        let timerText = "00:00:00";
-        let infoText = "未开始";
-
-        if (table.status === "running" || table.status === "paused") {
-          if (isUnlimited) {
-            timerText = formatTime(elapsed);
-            infoText = `已使用时间｜${pkg.name}`;
-          } else if (remaining >= 0) {
-            timerText = formatTime(remaining);
-            infoText = `剩余时间｜${pkg.name}`;
-          } else {
-            timerText = `超时 ${formatTime(Math.abs(remaining))}`;
-            infoText = `已使用 ${formatTime(elapsed)}｜${pkg.name}`;
-          }
-        }
-
-        const statusText =
-          table.status === "idle" ? "空闲" :
-          isOvertime ? "已超时" :
-          table.status === "paused" ? "暂停中" : "计时中";
-
-        const statusClass =
-          isOvertime ? "overtime" :
-          table.status === "running" ? "running" : "";
-
-        const card = document.createElement("div");
-        card.className = `card ${isOvertime ? "overtime" : ""}`;
-
-        card.innerHTML = `
-          <div class="table-head">
-            <div class="table-name">${table.name}</div>
-            <div class="status ${statusClass}">${statusText}</div>
-          </div>
-
-          <div class="package-row">
-            <select onchange="changePackage(${index}, this.value)" ${table.status !== "idle" ? "disabled" : ""}>
-              ${state.packages.map((p, i) => `
-                <option value="${i}" ${i === table.packageIndex ? "selected" : ""}>
-                  ${p.name}｜${p.minutes == 0 ? "不限时" : p.minutes + "分钟"}｜¥${p.price}
-                </option>
-              `).join("")}
-            </select>
-          </div>
-
-          <div class="timer ${isOvertime ? "overtime-text" : ""}">${timerText}</div>
-          <div class="info">${infoText}</div>
-          <div class="price">预计金额：¥${getPrice(table).toLocaleString()}</div>
-
-          <div class="controls">
-            ${
-              table.status === "idle"
-              ? `<button class="btn-main full" onclick="startTable(${index})">开始计时</button>`
-              : ""
-            }
-
-            ${
-              table.status === "running"
-              ? `<button class="btn-ghost" onclick="pauseTable(${index})">暂停</button>`
-              : ""
-            }
-
-            ${
-              table.status === "paused"
-              ? `<button class="btn-main" onclick="resumeTable(${index})">继续</button>`
-              : ""
-            }
-
-            ${
-              table.status !== "idle"
-              ? `
-                <button class="btn-ghost" onclick="addExtra(${index}, 30)">＋30分</button>
-                <button class="btn-ghost" onclick="addExtra(${index}, 60)">＋1小时</button>
-                <button class="btn-danger" onclick="resetTable(${index})">结账/重置</button>
-              `
-              : `<button class="btn-ghost full" onclick="renameTable(${index})">修改桌名</button>`
-            }
-          </div>
-        `;
-
-        container.appendChild(card);
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeSettings()">取消</button>
+      <button class="btn-main" onclick="saveSettings()">保存设置</button>
+    </div>
+  </div>
+</dialog>
+<script>
+const STORAGE_KEY = "chiptune_table_timer_v2";
+const defaultPackages = [
+  { name: "1小时", minutes: 60, price: 1500 },
+  { name: "2小时", minutes: 120, price: 2800 },
+  { name: "3小时", minutes: 180, price: 3300 },
+  { name: "6小时", minutes: 360, price: 5500 },
+  { name: "不限时", minutes: 0, price: 5500 }
+];
+const defaultExtensions = [
+  { name: "续费1小时", minutes: 60, price: 800 },
+  { name: "续费30分钟", minutes: 30, price: 500 }
+];
+let state = loadState();
+function loadState(){
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if(saved){
+    try{
+      const data = JSON.parse(saved);
+      if(!data.extensions) data.extensions = defaultExtensions;
+      if(!data.records) data.records = [];
+      data.tables.forEach(t=>{
+        if(!t.extensionsUsed) t.extensionsUsed = [];
       });
-    }
-
-    function startTable(index) {
-      const table = state.tables[index];
-      table.status = "running";
-      table.startTime = Date.now();
-      table.pausedTotalMs = 0;
-      table.pauseStartTime = null;
-      table.extraMinutes = 0;
-      table.alerted = false;
+      return data;
+    }catch(e){}
+  }
+  return {
+    packages: defaultPackages,
+    extensions: defaultExtensions,
+    records: [],
+    tables: Array.from({length:12},(_,i)=>newTable(i+1))
+  };
+}
+function newTable(num){
+  return {
+    id: Date.now() + Math.random(),
+    name: `${num}号桌`,
+    packageIndex: 0,
+    status: "idle",
+    startTime: null,
+    pausedTotalMs: 0,
+    pauseStartTime: null,
+    extensionsUsed: [],
+    alerted: false
+  };
+}
+function saveState(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+function formatTime(ms){
+  ms = Math.max(0, ms);
+  const total = Math.floor(ms/1000);
+  const h = Math.floor(total/3600);
+  const m = Math.floor((total%3600)/60);
+  const s = total%60;
+  return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+}
+function formatDate(ts){
+  if(!ts) return "";
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}
+function getElapsedMs(t){
+  if(!t.startTime) return 0;
+  const end = t.status === "paused" ? t.pauseStartTime : Date.now();
+  return Math.max(0, end - t.startTime - t.pausedTotalMs);
+}
+function getExtensionMinutes(t){
+  return t.extensionsUsed.reduce((sum,e)=>sum + Number(e.minutes || 0), 0);
+}
+function getExtensionAmount(t){
+  return t.extensionsUsed.reduce((sum,e)=>sum + Number(e.price || 0), 0);
+}
+function getLimitMs(t){
+  const pkg = state.packages[t.packageIndex];
+  if(!pkg || Number(pkg.minutes) === 0) return Infinity;
+  return (Number(pkg.minutes) + getExtensionMinutes(t)) * 60 * 1000;
+}
+function getPackagePrice(t){
+  const pkg = state.packages[t.packageIndex];
+  return pkg ? Number(pkg.price || 0) : 0;
+}
+function getTotalPrice(t){
+  return getPackagePrice(t) + getExtensionAmount(t);
+}
+function render(){
+  const container = document.getElementById("tables");
+  container.innerHTML = "";
+  state.tables.forEach((t,index)=>{
+    const pkg = state.packages[t.packageIndex] || state.packages[0];
+    const elapsed = getElapsedMs(t);
+    const limit = getLimitMs(t);
+    const remain = limit - elapsed;
+    const isUnlimited = pkg && Number(pkg.minutes) === 0;
+    const isOvertime = t.status === "running" && !isUnlimited && remain <= 0;
+    if(isOvertime && !t.alerted){
+      t.alerted = true;
       saveState();
-      render();
+      playAlert();
+      setTimeout(()=>alert(`${t.name} 已超时！`),50);
     }
-
-    function pauseTable(index) {
-      const table = state.tables[index];
-      table.status = "paused";
-      table.pauseStartTime = Date.now();
-      saveState();
-      render();
-    }
-
-    function resumeTable(index) {
-      const table = state.tables[index];
-      if (table.pauseStartTime) {
-        table.pausedTotalMs += Date.now() - table.pauseStartTime;
-      }
-      table.status = "running";
-      table.pauseStartTime = null;
-      saveState();
-      render();
-    }
-
-    function resetTable(index) {
-      const table = state.tables[index];
-      if (!confirm(`${table.name} 要结账并重置吗？`)) return;
-
-      table.status = "idle";
-      table.startTime = null;
-      table.pausedTotalMs = 0;
-      table.pauseStartTime = null;
-      table.extraMinutes = 0;
-      table.alerted = false;
-      saveState();
-      render();
-    }
-
-    function addExtra(index, minutes) {
-      const table = state.tables[index];
-      table.extraMinutes = Number(table.extraMinutes || 0) + minutes;
-      table.alerted = false;
-      saveState();
-      render();
-    }
-
-    function changePackage(index, packageIndex) {
-      state.tables[index].packageIndex = Number(packageIndex);
-      saveState();
-      render();
-    }
-
-    function renameTable(index) {
-      const name = prompt("请输入桌位名称", state.tables[index].name);
-      if (!name) return;
-      state.tables[index].name = name.trim();
-      saveState();
-      render();
-    }
-
-    function addTable() {
-      state.tables.push({
-        id: Date.now(),
-        name: `${state.tables.length + 1}号桌`,
-        packageIndex: 0,
-        status: "idle",
-        startTime: null,
-        pausedTotalMs: 0,
-        pauseStartTime: null,
-        extraMinutes: 0,
-        alerted: false
-      });
-      saveState();
-      render();
-    }
-
-    function openSettings() {
-      document.getElementById("tableCountInput").value = state.tables.length;
-      renderPackageSettings();
-      document.getElementById("settingsDialog").showModal();
-    }
-
-    function closeSettings() {
-      document.getElementById("settingsDialog").close();
-    }
-
-    function renderPackageSettings() {
-      const box = document.getElementById("packageSettings");
-      box.innerHTML = "";
-
-      state.packages.forEach((pkg, index) => {
-        const row = document.createElement("div");
-        row.className = "setting-grid";
-        row.innerHTML = `
-          <div>
-            <label>套餐名</label>
-            <input value="${pkg.name}" data-pkg-name="${index}" />
-          </div>
-          <div>
-            <label>时长（分钟，0=不限时）</label>
-            <input type="number" min="0" value="${pkg.minutes}" data-pkg-minutes="${index}" />
-          </div>
-          <div>
-            <label>价格（日元）</label>
-            <input type="number" min="0" value="${pkg.price}" data-pkg-price="${index}" />
-          </div>
-          <button class="btn-danger" onclick="removePackageSetting(${index})">删除</button>
-        `;
-        box.appendChild(row);
-      });
-    }
-
-    function addPackageSetting() {
-      state.packages.push({
-        name: "新套餐",
-        minutes: 60,
-        price: 0
-      });
-      renderPackageSettings();
-    }
-
-    function removePackageSetting(index) {
-      if (state.packages.length <= 1) {
-        alert("至少需要保留一个套餐。");
-        return;
-      }
-
-      state.packages.splice(index, 1);
-
-      state.tables.forEach(t => {
-        if (t.packageIndex >= state.packages.length) {
-          t.packageIndex = 0;
-        }
-      });
-
-      renderPackageSettings();
-    }
-
-    function saveSettings() {
-      const newPackages = state.packages.map((pkg, index) => {
-        return {
-          name: document.querySelector(`[data-pkg-name="${index}"]`).value || "未命名套餐",
-          minutes: Number(document.querySelector(`[data-pkg-minutes="${index}"]`).value || 0),
-          price: Number(document.querySelector(`[data-pkg-price="${index}"]`).value || 0)
-        };
-      });
-
-      state.packages = newPackages;
-
-      const count = Number(document.getElementById("tableCountInput").value || state.tables.length);
-
-      if (count > state.tables.length) {
-        for (let i = state.tables.length; i < count; i++) {
-          state.tables.push({
-            id: Date.now() + i,
-            name: `${i + 1}号桌`,
-            packageIndex: 0,
-            status: "idle",
-            startTime: null,
-            pausedTotalMs: 0,
-            pauseStartTime: null,
-            extraMinutes: 0,
-            alerted: false
-          });
-        }
-      } else if (count < state.tables.length) {
-        const running = state.tables.slice(count).some(t => t.status !== "idle");
-        if (running && !confirm("被删除的桌位中有正在计时的桌位，确定删除吗？")) return;
-        state.tables = state.tables.slice(0, count);
-      }
-
-      saveState();
-      closeSettings();
-      render();
-    }
-
-    function playAlert() {
-      try {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioCtx.createOscillator();
-        const gainNode = audioCtx.createGain();
-
-        oscillator.type = "sine";
-        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
-        gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
-
-        oscillator.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-
-        oscillator.start();
-
-        setTimeout(() => {
-          oscillator.stop();
-          audioCtx.close();
-        }, 700);
-      } catch (e) {
-        console.log("Audio alert blocked.");
+    let timerText = "00:00:00";
+    let info = "未开始";
+    if(t.status === "running" || t.status === "paused"){
+      if(isUnlimited){
+        timerText = formatTime(elapsed);
+        info = `已使用时间｜${pkg.name}`;
+      }else if(remain >= 0){
+        timerText = formatTime(remain);
+        info = `剩余时间｜${pkg.name}`;
+      }else{
+        timerText = `超时 ${formatTime(Math.abs(remain))}`;
+        info = `已使用 ${formatTime(elapsed)}｜${pkg.name}`;
       }
     }
-
-    setInterval(render, 1000);
-    render();
-  </script>
+    const statusText = t.status === "idle" ? "空闲" : isOvertime ? "已超时" : t.status === "paused" ? "暂停中" : "计时中";
+    const statusClass = isOvertime ? "overtime" : t.status === "running" ? "running" : "";
+    const card = document.createElement("div");
+    card.className = `card ${isOvertime ? "overtime" : ""}`;
+    card.innerHTML = `
+      <div class="table-head">
+        <div class="table-name">${t.name}</div>
+        <div class="status ${statusClass}">${statusText}</div>
+      </div>
+      <div class="package-row">
+        <select onchange="changePackage(${index}, this.value)" ${t.status !== "idle" ? "disabled" : ""}>
+          ${state.packages.map((p,i)=>`
+            <option value="${i}" ${i === t.packageIndex ? "selected" : ""}>
+              ${p.name}｜${p.minutes == 0 ? "不限时" : p.minutes + "分钟"}｜¥${p.price}
+            </option>
+          `).join("")}
+        </select>
+      </div>
+      <div class="timer ${isOvertime ? "overtime-text" : ""}">${timerText}</div>
+      <div class="info">${info}</div>
+      <div class="price">
+        套餐金额：¥${getPackagePrice(t).toLocaleString()}<br>
+        续费金额：¥${getExtensionAmount(t).toLocaleString()}<br>
+        合计金额：¥${getTotalPrice(t).toLocaleString()}
+      </div>
+      <div class="controls">
+        ${t.status === "idle" ? `<button class="btn-main full" onclick="startTable(${index})">开始计时</button>` : ""}
+        ${t.status === "running" ? `<button class="btn-ghost" onclick="pauseTable(${index})">暂停</button>` : ""}
+        ${t.status === "paused" ? `<button class="btn-main" onclick="resumeTable(${index})">继续</button>` : ""}
+        ${t.status !== "idle" ? `
+          ${state.extensions.map((e,ei)=>`
+            <button class="btn-ghost" onclick="addExtension(${index},${ei})">${e.name}<br>¥${e.price}</button>
+          `).join("")}
+          <button class="btn-danger full" onclick="checkoutTable(${index})">结账/记录</button>
+        ` : `<button class="btn-ghost full" onclick="renameTable(${index})">修改桌名</button>`}
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+function startTable(index){
+  const t = state.tables[index];
+  t.status = "running";
+  t.startTime = Date.now();
+  t.pausedTotalMs = 0;
+  t.pauseStartTime = null;
+  t.extensionsUsed = [];
+  t.alerted = false;
+  saveState();
+  render();
+}
+function pauseTable(index){
+  const t = state.tables[index];
+  t.status = "paused";
+  t.pauseStartTime = Date.now();
+  saveState();
+  render();
+}
+function resumeTable(index){
+  const t = state.tables[index];
+  if(t.pauseStartTime){
+    t.pausedTotalMs += Date.now() - t.pauseStartTime;
+  }
+  t.status = "running";
+  t.pauseStartTime = null;
+  saveState();
+  render();
+}
+function addExtension(tableIndex, extensionIndex){
+  const t = state.tables[tableIndex];
+  const e = state.extensions[extensionIndex];
+  if(!e) return;
+  t.extensionsUsed.push({
+    name: e.name,
+    minutes: Number(e.minutes),
+    price: Number(e.price),
+    addedAt: Date.now()
+  });
+  t.alerted = false;
+  saveState();
+  render();
+}
+function checkoutTable(index){
+  const t = state.tables[index];
+  const pkg = state.packages[t.packageIndex];
+  if(!confirm(`${t.name} 要结账并保存收银记录吗？`)) return;
+  const record = {
+    date: formatDate(Date.now()),
+    tableName: t.name,
+    startTime: formatDate(t.startTime),
+    checkoutTime: formatDate(Date.now()),
+    packageName: pkg.name,
+    packageMinutes: pkg.minutes == 0 ? "不限时" : pkg.minutes,
+    packagePrice: getPackagePrice(t),
+    extensionMinutes: getExtensionMinutes(t),
+    extensionAmount: getExtensionAmount(t),
+    extensionDetail: t.extensionsUsed.map(e=>`${e.name}/${e.minutes}分钟/¥${e.price}`).join("；"),
+    totalAmount: getTotalPrice(t)
+  };
+  state.records.push(record);
+  state.tables[index] = {
+    ...t,
+    status: "idle",
+    startTime: null,
+    pausedTotalMs: 0,
+    pauseStartTime: null,
+    extensionsUsed: [],
+    alerted: false
+  };
+  saveState();
+  render();
+}
+function changePackage(index, packageIndex){
+  state.tables[index].packageIndex = Number(packageIndex);
+  saveState();
+  setTimeout(render,150);
+}
+function renameTable(index){
+  const name = prompt("请输入桌位名称", state.tables[index].name);
+  if(!name) return;
+  state.tables[index].name = name.trim();
+  saveState();
+  render();
+}
+function addTable(){
+  state.tables.push(newTable(state.tables.length + 1));
+  saveState();
+  render();
+}
+function openSettings(){
+  document.getElementById("tableCountInput").value = state.tables.length;
+  renderPackageSettings();
+  renderExtensionSettings();
+  document.getElementById("settingsDialog").showModal();
+}
+function closeSettings(){
+  document.getElementById("settingsDialog").close();
+}
+function renderPackageSettings(){
+  const box = document.getElementById("packageSettings");
+  box.innerHTML = "";
+  state.packages.forEach((pkg,index)=>{
+    const row = document.createElement("div");
+    row.className = "setting-grid";
+    row.innerHTML = `
+      <div><label>套餐名</label><input value="${pkg.name}" data-pkg-name="${index}"></div>
+      <div><label>时长分钟，0=不限时</label><input type="number" min="0" value="${pkg.minutes}" data-pkg-minutes="${index}"></div>
+      <div><label>价格</label><input type="number" min="0" value="${pkg.price}" data-pkg-price="${index}"></div>
+      <button class="btn-danger" onclick="removePackageSetting(${index})">删除</button>
+    `;
+    box.appendChild(row);
+  });
+}
+function addPackageSetting(){
+  state.packages.push({name:"新套餐",minutes:60,price:0});
+  renderPackageSettings();
+}
+function removePackageSetting(index){
+  if(state.packages.length <= 1){
+    alert("至少保留一个套餐。");
+    return;
+  }
+  state.packages.splice(index,1);
+  state.tables.forEach(t=>{ if(t.packageIndex >= state.packages.length) t.packageIndex = 0; });
+  renderPackageSettings();
+}
+function renderExtensionSettings(){
+  const box = document.getElementById("extensionSettings");
+  box.innerHTML = "";
+  state.extensions.forEach((ext,index)=>{
+    const row = document.createElement("div");
+    row.className = "setting-grid";
+    row.innerHTML = `
+      <div><label>续费名称</label><input value="${ext.name}" data-ext-name="${index}"></div>
+      <div><label>续费分钟</label><input type="number" min="1" value="${ext.minutes}" data-ext-minutes="${index}"></div>
+      <div><label>续费金额</label><input type="number" min="0" value="${ext.price}" data-ext-price="${index}"></div>
+      <button class="btn-danger" onclick="removeExtensionSetting(${index})">删除</button>
+    `;
+    box.appendChild(row);
+  });
+}
+function addExtensionSetting(){
+  state.extensions.push({name:"续费1小时",minutes:60,price:800});
+  renderExtensionSettings();
+}
+function removeExtensionSetting(index){
+  if(state.extensions.length <= 1){
+    alert("至少保留一个续费选项。");
+    return;
+  }
+  state.extensions.splice(index,1);
+  renderExtensionSettings();
+}
+function saveSettings(){
+  state.packages = state.packages.map((pkg,index)=>({
+    name: document.querySelector(`[data-pkg-name="${index}"]`).value || "未命名套餐",
+    minutes: Number(document.querySelector(`[data-pkg-minutes="${index}"]`).value || 0),
+    price: Number(document.querySelector(`[data-pkg-price="${index}"]`).value || 0)
+  }));
+  state.extensions = state.extensions.map((ext,index)=>({
+    name: document.querySelector(`[data-ext-name="${index}"]`).value || "续费",
+    minutes: Number(document.querySelector(`[data-ext-minutes="${index}"]`).value || 0),
+    price: Number(document.querySelector(`[data-ext-price="${index}"]`).value || 0)
+  }));
+  const count = Number(document.getElementById("tableCountInput").value || state.tables.length);
+  if(count > state.tables.length){
+    for(let i = state.tables.length; i < count; i++){
+      state.tables.push(newTable(i + 1));
+    }
+  }else if(count < state.tables.length){
+    const running = state.tables.slice(count).some(t=>t.status !== "idle");
+    if(running && !confirm("被删除的桌位中有正在计时的桌位，确定删除吗？")) return;
+    state.tables = state.tables.slice(0,count);
+  }
+  saveState();
+  closeSettings();
+  render();
+}
+function exportRecords(){
+  if(!state.records.length){
+    alert("目前还没有收银记录。");
+    return;
+  }
+  const headers = [
+    "结账日期",
+    "桌位",
+    "开始时间",
+    "结账时间",
+    "套餐名称",
+    "套餐时间",
+    "套餐金额",
+    "续费时间",
+    "续费金额",
+    "续费明细",
+    "合计金额"
+  ];
+  const rows = state.records.map(r=>[
+    r.date,
+    r.tableName,
+    r.startTime,
+    r.checkoutTime,
+    r.packageName,
+    r.packageMinutes,
+    r.packagePrice,
+    r.extensionMinutes,
+    r.extensionAmount,
+    r.extensionDetail,
+    r.totalAmount
+  ]);
+  const csv = [headers, ...rows]
+    .map(row=>row.map(cell=>`"${String(cell ?? "").replace(/"/g,'""')}"`).join(","))
+    .join("\n");
+  const blob = new Blob(["\uFEFF" + csv], {type:"text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `chiptune_cash_records_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function playAlert(){
+  try{
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(880,audioCtx.currentTime);
+    gainNode.gain.setValueAtTime(0.2,audioCtx.currentTime);
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    oscillator.start();
+    setTimeout(()=>{
+      oscillator.stop();
+      audioCtx.close();
+    },700);
+  }catch(e){}
+}
+setInterval(()=>{
+  const active = document.activeElement;
+  if(active && active.tagName === "SELECT") return;
+  render();
+},1000);
+render();
+</script>
 </body>
 </html>
