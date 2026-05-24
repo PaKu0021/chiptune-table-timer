@@ -285,6 +285,7 @@ canvas{
     <button class="btn-ghost full" onclick="closeCheckout()">取消</button>
   </div>
 </div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
@@ -439,11 +440,7 @@ function getOriginalJPY(t){
 function getRoundedJPY(jpy){
   const base = Math.floor(jpy / 1000) * 1000;
   const rest = jpy - base;
-
-  if(rest <= 500){
-    return base;
-  }
-  return base + 500;
+  return rest <= 500 ? base : base + 500;
 }
 
 function getRMB(jpy){
@@ -487,7 +484,6 @@ function renderTables(){
 
     const originalJPY=getOriginalJPY(t);
     const roundedJPY=getRoundedJPY(originalJPY);
-    const rmb=getRMB(currentUseRound ? roundedJPY : originalJPY);
 
     const card=document.createElement("div");
     card.className=`card ${isOver?"overtime":""}`;
@@ -591,6 +587,7 @@ function renderPackageSettings(){
     box.appendChild(row);
   });
 }
+
 function getFilteredRecords(mode){
   const now=new Date();
 
@@ -598,9 +595,7 @@ function getFilteredRecords(mode){
     const d=new Date(r.timestamp || r.time || r.date);
     if(isNaN(d.getTime())) return mode==="all";
 
-    if(mode==="today"){
-      return dateKey(d.getTime())===dateKey();
-    }
+    if(mode==="today") return dateKey(d.getTime())===dateKey();
 
     if(mode==="week"){
       const nowDay = now.getDay() || 7;
@@ -645,32 +640,23 @@ function updateFilterButtons(){
 
 function renderRecords(records){
   const rows=[...records].reverse().slice(0,150);
-
   document.getElementById("recordsBox").innerHTML=`
     <table class="record-table">
       <thead>
-        <tr>
-          <th>时间</th>
-          <th>桌位</th>
-          <th>套餐</th>
-          <th>续费</th>
-          <th>原价</th>
-          <th>结账</th>
-          <th>渠道</th>
-          <th>币种</th>
-        </tr>
+        <tr><th>时间</th><th>桌位</th><th>套餐</th><th>续费</th><th>原价</th><th>结账</th><th>渠道</th><th>币种</th><th>金额</th></tr>
       </thead>
       <tbody>
         ${rows.map(r=>`
           <tr>
-            <td>${r.time}</td>
-            <td>${r.tableName}</td>
-            <td>${r.packageName}</td>
-            <td>${r.extraMinutes}分</td>
-            <td>¥${r.originalJPY}</td>
-            <td>¥${r.totalJPY}</td>
-            <td>${r.pay}</td>
-            <td>${r.currency}</td>
+            <td>${r.time || r.date || ""}</td>
+            <td>${r.tableName || r.table || ""}</td>
+            <td>${r.packageName || r.pkg || ""}</td>
+            <td>${r.extraMinutes || r.extensionMinutes || 0}分 / ¥${r.extensionAmount || r.extraPrice || 0}</td>
+            <td>¥${Number(r.originalJPY || r.totalJPY || 0).toLocaleString()}</td>
+            <td>¥${Number(r.totalJPY || 0).toLocaleString()}</td>
+            <td>${r.pay || ""}</td>
+            <td>${r.currency || ""}</td>
+            <td>${r.currency==="人民币" ? "¥"+Number(r.totalRMB||0).toLocaleString() : "¥"+Number(r.totalJPY||0).toLocaleString()}</td>
           </tr>
         `).join("")}
       </tbody>
@@ -684,43 +670,130 @@ function renderChart(records){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
   const daily={};
-
   records.forEach(r=>{
-    const d=new Date(r.timestamp);
-    const key=dateKey(d.getTime());
-    const amount = r.currency==="人民币" ? r.totalRMB : r.totalJPY;
+    const d=new Date(r.timestamp || r.time || r.date);
+    const key=isNaN(d.getTime()) ? "未知" : dateKey(d.getTime());
+    const amount = r.currency==="人民币" ? Number(r.totalRMB||0) : Number(r.totalJPY||0);
     daily[key]=(daily[key]||0)+amount;
   });
 
-  const keys=Object.keys(daily).sort();
-  const vals=keys.map(k=>daily[k]);
+  const labels=Object.keys(daily).sort();
+  const values=labels.map(k=>daily[k]);
 
-  if(!keys.length) return;
+  ctx.fillStyle="#8a8174";
+  ctx.font="18px -apple-system";
+  if(!labels.length){
+    ctx.fillText("暂无数据",30,60);
+    return;
+  }
 
-  const max=Math.max(...vals,1);
-  const w=canvas.width;
-  const h=canvas.height;
+  const max=Math.max(...values,1);
+  const pad=45;
+  const w=canvas.width-pad*2;
+  const h=canvas.height-pad*2;
+
+  ctx.strokeStyle="#e6dccb";
+  ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(pad,pad);
+  ctx.lineTo(pad,pad+h);
+  ctx.lineTo(pad+w,pad+h);
+  ctx.stroke();
 
   ctx.strokeStyle="#d8a900";
-  ctx.lineWidth=3;
+  ctx.lineWidth=4;
   ctx.beginPath();
 
-  keys.forEach((k,i)=>{
-    const x=i*(w/(keys.length-1||1));
-    const y=h-(vals[i]/max*h);
-
+  labels.forEach((label,i)=>{
+    const x=pad + (labels.length===1 ? w/2 : i*w/(labels.length-1));
+    const y=pad+h-(values[i]/max*h);
     if(i===0) ctx.moveTo(x,y);
     else ctx.lineTo(x,y);
   });
-
   ctx.stroke();
+
+  ctx.fillStyle="#332d24";
+  labels.forEach((label,i)=>{
+    const x=pad + (labels.length===1 ? w/2 : i*w/(labels.length-1));
+    const y=pad+h-(values[i]/max*h);
+    ctx.beginPath();
+    ctx.arc(x,y,5,0,Math.PI*2);
+    ctx.fill();
+    ctx.font="14px -apple-system";
+    ctx.fillText(values[i],x-15,y-12);
+  });
 }
 
 function renderAll(){
   renderTables();
-  if(document.getElementById("ownerPage").style.display==="block"){
-    renderOwner();
-  }
+  if(document.getElementById("ownerPage").style.display==="block") renderOwner();
+}
+
+async function startTable(i){
+  const t=state.tables[i];
+  t.status="running";
+  t.startTime=Date.now();
+  t.pausedTotalMs=0;
+  t.pauseStartTime=null;
+  t.extraMinutes=0;
+  t.alerted=false;
+  await save();
+}
+
+async function pauseTable(i){
+  const t=state.tables[i];
+  t.status="paused";
+  t.pauseStartTime=Date.now();
+  await save();
+}
+
+async function resumeTable(i){
+  const t=state.tables[i];
+  if(t.pauseStartTime) t.pausedTotalMs += Date.now()-t.pauseStartTime;
+  t.status="running";
+  t.pauseStartTime=null;
+  await save();
+}
+
+async function addHour(i){
+  state.tables[i].extraMinutes = Number(state.tables[i].extraMinutes || 0) + 60;
+  state.tables[i].alerted=false;
+  await save();
+}
+
+function openCheckout(i){
+  currentCheckoutIndex=i;
+  currentUseRound=false;
+
+  const btn=document.getElementById("roundButton");
+  btn.className="btn-ghost full";
+  btn.textContent="抹零";
+
+  updateCheckoutAmount();
+  document.getElementById("checkoutModalBg").style.display="block";
+}
+
+function toggleRound(){
+  currentUseRound=!currentUseRound;
+
+  const btn=document.getElementById("roundButton");
+  btn.className=currentUseRound ? "btn-main full" : "btn-ghost full";
+  btn.textContent=currentUseRound ? "已抹零" : "抹零";
+
+  updateCheckoutAmount();
+}
+
+function updateCheckoutAmount(){
+  const t=state.tables[currentCheckoutIndex];
+  const p=getPackage(t);
+  const original=getOriginalJPY(t);
+  const finalJPY=currentUseRound ? getRoundedJPY(original) : original;
+  const rmb=getRMB(finalJPY);
+
+  document.getElementById("checkoutInfo").innerHTML =
+    `${t.name}｜${p.name}<br>付款渠道：${t.pay || "未选择"}｜币种：${t.currency}`;
+  document.getElementById("checkoutAmount").innerHTML =
+    `原价：¥${original.toLocaleString()}<br>结账日元：¥${finalJPY.toLocaleString()}<br>人民币：¥${rmb.toLocaleString()}`;
 }
 
 async function confirmCheckout(){
@@ -729,7 +802,7 @@ async function confirmCheckout(){
   const p=getPackage(t);
 
   if(!t.pay){
-    alert("请选择付款方式");
+    alert("请选择付款渠道");
     return;
   }
 
@@ -742,20 +815,26 @@ async function confirmCheckout(){
     time:formatDate(Date.now()),
     tableName:t.name,
     packageName:p.name,
-    extraMinutes:t.extraMinutes,
+    packageMinutes:p.minutes==0?"不限时":p.minutes,
+    packagePrice:Number(p.price||0),
+    extraMinutes:Number(t.extraMinutes||0),
+    extensionAmount:(Number(t.extraMinutes||0)/60)*Number(p.extensionPrice||0),
     originalJPY,
     totalJPY:finalJPY,
     totalRMB,
+    roundRule:currentUseRound ? "500自动抹零" : "不抹零",
     pay:t.pay,
-    currency:t.currency,
-    roundRule:currentUseRound?"500抹零":"不抹零"
+    currency:t.currency
   });
 
   state.tables[i]={
     ...t,
     status:"idle",
     startTime:null,
-    extraMinutes:0
+    pausedTotalMs:0,
+    pauseStartTime:null,
+    extraMinutes:0,
+    alerted:false
   };
 
   await save();
@@ -766,9 +845,31 @@ function closeCheckout(){
   document.getElementById("checkoutModalBg").style.display="none";
 }
 
-function setFilter(mode){
-  currentFilter=mode;
-  renderOwner();
+async function changePackage(i,val){
+  state.tables[i].packageIndex=Number(val);
+  await save();
+}
+
+async function setPay(i,val){
+  state.tables[i].pay=val;
+  await save();
+}
+
+async function setCurrency(i,val){
+  state.tables[i].currency=val;
+  await save();
+}
+
+async function renameTable(i){
+  const name=prompt("请输入桌位名称",state.tables[i].name);
+  if(!name) return;
+  state.tables[i].name=name.trim();
+  await save();
+}
+
+async function addTable(){
+  state.tables.push(newTable(state.tables.length+1));
+  await save();
 }
 
 function showOwner(){
@@ -782,18 +883,93 @@ function showMain(){
   document.getElementById("mainPage").style.display="block";
 }
 
+function setFilter(mode){
+  currentFilter=mode;
+  updateFilterButtons();
+  renderOwner();
+}
+
+async function saveTableCount(){
+  const count=Number(document.getElementById("tableCountInput").value||state.tables.length);
+  if(count>state.tables.length){
+    for(let i=state.tables.length;i<count;i++) state.tables.push(newTable(i+1));
+  }else if(count<state.tables.length){
+    if(state.tables.slice(count).some(t=>t.status!=="idle") && !confirm("删除范围内有正在计时桌位，确定删除吗？")) return;
+    state.tables=state.tables.slice(0,count);
+  }
+  await save();
+}
+
+function addPackageSetting(){
+  state.packages.push({name:"新套餐",minutes:60,price:0,extensionPrice:0});
+  renderOwner();
+}
+
+function removePackageSetting(i){
+  if(state.packages.length<=1) return alert("至少保留一个套餐");
+  state.packages.splice(i,1);
+  state.tables.forEach(t=>{if(t.packageIndex>=state.packages.length)t.packageIndex=0;});
+  renderOwner();
+}
+
+async function saveSettings(){
+  state.packages=state.packages.map((p,i)=>({
+    name:document.querySelector(`[data-pkg-name="${i}"]`).value || "未命名套餐",
+    minutes:Number(document.querySelector(`[data-pkg-minutes="${i}"]`).value || 0),
+    price:Number(document.querySelector(`[data-pkg-price="${i}"]`).value || 0),
+    extensionPrice:Number(document.querySelector(`[data-pkg-extension="${i}"]`).value || 0)
+  }));
+  await save();
+  alert("已保存");
+}
+
+function exportRecords(mode){
+  const records = mode==="all" ? state.records : getFilteredRecords(mode);
+  if(!records.length) return alert("暂无记录");
+
+  const headers=["时间","桌位","套餐","套餐时间","套餐金额","续费时间","续费金额","原价日元","结账日元","结账人民币","付款渠道","币种","抹零规则"];
+  const rows=records.map(r=>[
+    r.time || r.date || "",
+    r.tableName || r.table || "",
+    r.packageName || r.pkg || "",
+    r.packageMinutes || "",
+    r.packagePrice || r.pkgPrice || "",
+    r.extraMinutes || r.extensionMinutes || r.extra || 0,
+    r.extensionAmount || r.extraPrice || 0,
+    r.originalJPY || r.totalJPY || "",
+    r.totalJPY || "",
+    r.totalRMB || "",
+    r.pay || "",
+    r.currency || "",
+    r.roundRule || ""
+  ]);
+
+  const csv=[headers,...rows].map(row=>row.map(c=>`"${String(c??"").replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=`chiptune_records_${mode}_${dateKey()}.csv`;
+  a.click();
+}
+
 function playAlert(){
   try{
-    const ctx=new AudioContext();
-    const o=ctx.createOscillator();
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const o=ctx.createOscillator(), g=ctx.createGain();
     o.frequency.value=880;
-    o.connect(ctx.destination);
+    g.gain.value=.2;
+    o.connect(g);
+    g.connect(ctx.destination);
     o.start();
-    setTimeout(()=>o.stop(),300);
+    setTimeout(()=>{o.stop();ctx.close();},700);
   }catch(e){}
 }
 
-setInterval(renderAll,1000);
+setInterval(()=>{
+  const active=document.activeElement;
+  if(active && active.tagName==="SELECT") return;
+  renderTables();
+},1000);
 
 window.login=login;
 window.startTable=startTable;
@@ -801,9 +977,9 @@ window.pauseTable=pauseTable;
 window.resumeTable=resumeTable;
 window.addHour=addHour;
 window.openCheckout=openCheckout;
+window.toggleRound=toggleRound;
 window.confirmCheckout=confirmCheckout;
 window.closeCheckout=closeCheckout;
-window.toggleRound=toggleRound;
 window.changePackage=changePackage;
 window.setPay=setPay;
 window.setCurrency=setCurrency;
@@ -812,6 +988,11 @@ window.addTable=addTable;
 window.showOwner=showOwner;
 window.showMain=showMain;
 window.setFilter=setFilter;
+window.saveTableCount=saveTableCount;
+window.addPackageSetting=addPackageSetting;
+window.removePackageSetting=removePackageSetting;
+window.saveSettings=saveSettings;
+window.exportRecords=exportRecords;
 
 if(localStorage.getItem("chiptune_login")==="1"){
   document.getElementById("loginPage").style.display="none";
