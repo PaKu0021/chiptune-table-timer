@@ -22,13 +22,14 @@ button{cursor:pointer;font-weight:700}.btn-main{background:var(--main);border-co
 .package-row{display:flex;gap:8px;margin-top:8px}.package-row select{flex:1;min-width:0}
 .price{text-align:center;font-size:17px;font-weight:800;margin-top:10px;line-height:1.7}
 .controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.full{grid-column:1/-1}
-dialog{width:min(760px,calc(100vw - 28px));border:none;border-radius:24px;padding:0;box-shadow:0 20px 80px rgba(0,0,0,.25);background:var(--card)}
+dialog{width:min(820px,calc(100vw - 28px));border:none;border-radius:24px;padding:0;box-shadow:0 20px 80px rgba(0,0,0,.25);background:var(--card)}
 dialog::backdrop{background:rgba(0,0,0,.35)}.modal{padding:20px}.modal h2{margin:0 0 12px}
 .setting-block{border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:12px;background:#fff}
 .setting-grid{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px}.setting-grid input{width:100%}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:14px}
 label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}.small{font-size:13px;color:var(--muted);line-height:1.5}
-@media(max-width:640px){body{padding:12px}header{align-items:flex-start;flex-direction:column}h1{font-size:22px}.timer{font-size:34px}.setting-grid{grid-template-columns:1fr}}
+.checkout-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
+@media(max-width:640px){body{padding:12px}header{align-items:flex-start;flex-direction:column}h1{font-size:22px}.timer{font-size:34px}.setting-grid,.checkout-row{grid-template-columns:1fr}}
 </style>
 </head>
 
@@ -50,20 +51,19 @@ label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}.small{f
 <dialog id="settingsDialog">
   <div class="modal">
     <h2>设置</h2>
+
     <div class="setting-block">
       <label>桌位数量</label>
-      <input id="tableCountInput" type="number" min="1" max="50">
+      <input class="safe-input" id="tableCountInput" type="number" min="1" max="50" readonly>
     </div>
+
     <div class="setting-block">
       <label>套餐设置</label>
+      <div class="small">每个套餐可以单独设置续费时间和续费金额。</div>
       <div id="packageSettings"></div>
       <button class="btn-main" onclick="addPackageSetting()">＋ 添加套餐</button>
     </div>
-    <div class="setting-block">
-      <label>续费设置</label>
-      <div id="extensionSettings"></div>
-      <button class="btn-main" onclick="addExtensionSetting()">＋ 添加续费选项</button>
-    </div>
+
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeSettings()">取消</button>
       <button class="btn-main" onclick="saveSettings()">保存设置</button>
@@ -90,26 +90,18 @@ const db = getFirestore(app);
 const stateRef = doc(db, "shop", "main");
 
 const defaultPackages = [
-  { name:"1小时", minutes:60, price:1500 },
-  { name:"2小时", minutes:120, price:2800 },
-  { name:"3小时", minutes:180, price:3300 },
-  { name:"6小时", minutes:360, price:5500 },
-  { name:"不限时", minutes:0, price:5500 }
-];
-
-const defaultExtensions = [
-  { name:"续费1小时", minutes:60, price:800 },
-  { name:"续费30分钟", minutes:30, price:500 }
+  { name:"1小时", minutes:60, price:1500, extensionName:"续费1小时", extensionMinutes:60, extensionPrice:900 },
+  { name:"2小时", minutes:120, price:2800, extensionName:"续费1小时", extensionMinutes:60, extensionPrice:900 },
+  { name:"3小时", minutes:180, price:3300, extensionName:"续费1小时", extensionMinutes:60, extensionPrice:800 },
+  { name:"6小时", minutes:360, price:5500, extensionName:"续费1小时", extensionMinutes:60, extensionPrice:800 },
+  { name:"不限时", minutes:0, price:5500, extensionName:"续费", extensionMinutes:0, extensionPrice:0 }
 ];
 
 let state = {
   packages: defaultPackages,
-  extensions: defaultExtensions,
   records: [],
   tables: Array.from({length:12},(_,i)=>newTable(i+1))
 };
-
-let cloudReady = false;
 
 function newTable(num){
   return {
@@ -121,11 +113,30 @@ function newTable(num){
     pausedTotalMs: 0,
     pauseStartTime: null,
     extensionsUsed: [],
+    roundingUnit: 0,
     alerted: false
   };
 }
 
+function normalizeState(){
+  if(!state.packages) state.packages = defaultPackages;
+  if(!state.records) state.records = [];
+  if(!state.tables) state.tables = Array.from({length:12},(_,i)=>newTable(i+1));
+
+  state.packages.forEach(p=>{
+    if(p.extensionName === undefined) p.extensionName = "续费1小时";
+    if(p.extensionMinutes === undefined) p.extensionMinutes = 60;
+    if(p.extensionPrice === undefined) p.extensionPrice = 800;
+  });
+
+  state.tables.forEach(t=>{
+    if(!t.extensionsUsed) t.extensionsUsed = [];
+    if(t.roundingUnit === undefined) t.roundingUnit = 0;
+  });
+}
+
 async function saveCloud(){
+  normalizeState();
   await setDoc(stateRef, state);
 }
 
@@ -139,23 +150,12 @@ async function initCloud(){
     if(snap.exists()){
       state = snap.data();
       normalizeState();
-      cloudReady = true;
       document.getElementById("syncStatus").textContent = "已连接，多设备实时同步中。";
       render();
     }
   }, err=>{
-    document.getElementById("syncStatus").textContent = "Firebase 连接失败，请检查 Firestore 规则。";
+    document.getElementById("syncStatus").textContent = "Firebase 连接失败。";
     alert("Firebase 连接失败：" + err.message);
-  });
-}
-
-function normalizeState(){
-  if(!state.packages) state.packages = defaultPackages;
-  if(!state.extensions) state.extensions = defaultExtensions;
-  if(!state.records) state.records = [];
-  if(!state.tables) state.tables = Array.from({length:12},(_,i)=>newTable(i+1));
-  state.tables.forEach(t=>{
-    if(!t.extensionsUsed) t.extensionsUsed = [];
   });
 }
 
@@ -199,8 +199,28 @@ function getPackagePrice(t){
   return pkg ? Number(pkg.price || 0) : 0;
 }
 
-function getTotalPrice(t){
+function getRawTotal(t){
   return getPackagePrice(t) + getExtensionAmount(t);
+}
+
+function getRoundedTotal(t){
+  const raw = getRawTotal(t);
+  const unit = Number(t.roundingUnit || 0);
+  if(!unit) return raw;
+  return Math.floor(raw / unit) * unit;
+}
+
+function getDiscountAmount(t){
+  return getRawTotal(t) - getRoundedTotal(t);
+}
+
+function enableInputOnTap(root=document){
+  root.querySelectorAll(".safe-input").forEach(input=>{
+    input.setAttribute("readonly","readonly");
+    input.addEventListener("pointerdown",()=>{
+      input.removeAttribute("readonly");
+    },{once:true});
+  });
 }
 
 window.render = function(){
@@ -243,6 +263,10 @@ window.render = function(){
     const statusText = t.status === "idle" ? "空闲" : isOvertime ? "已超时" : t.status === "paused" ? "暂停中" : "计时中";
     const statusClass = isOvertime ? "overtime" : t.status === "running" ? "running" : "";
 
+    const extensionButton = Number(pkg.extensionMinutes || 0) > 0
+      ? `<button class="btn-ghost full" onclick="addPackageExtension(${index})">${pkg.extensionName || "续费"}<br>+${pkg.extensionMinutes}分钟 / ¥${pkg.extensionPrice}</button>`
+      : "";
+
     const card = document.createElement("div");
     card.className = `card ${isOvertime ? "overtime" : ""}`;
     card.innerHTML = `
@@ -267,7 +291,9 @@ window.render = function(){
       <div class="price">
         套餐金额：¥${getPackagePrice(t).toLocaleString()}<br>
         续费金额：¥${getExtensionAmount(t).toLocaleString()}<br>
-        合计金额：¥${getTotalPrice(t).toLocaleString()}
+        原金额：¥${getRawTotal(t).toLocaleString()}<br>
+        抹零：-¥${getDiscountAmount(t).toLocaleString()}<br>
+        实收金额：¥${getRoundedTotal(t).toLocaleString()}
       </div>
 
       <div class="controls">
@@ -276,16 +302,19 @@ window.render = function(){
         ${t.status === "paused" ? `<button class="btn-main" onclick="resumeTable(${index})">继续</button>` : ""}
 
         ${t.status !== "idle" ? `
-          ${state.extensions.map((e,ei)=>`
-            <button class="btn-ghost" onclick="addExtension(${index},${ei})">${e.name}<br>¥${e.price}</button>
-          `).join("")}
+          ${extensionButton}
+          <button class="btn-ghost" onclick="setRounding(${index},0)">不抹零</button>
+          <button class="btn-ghost" onclick="setRounding(${index},10)">抹个位</button>
+          <button class="btn-ghost" onclick="setRounding(${index},100)">抹十位</button>
+          <button class="btn-ghost" onclick="setRounding(${index},1000)">抹百位</button>
+          <button class="btn-ghost full" onclick="setRounding(${index},10000)">抹千位</button>
           <button class="btn-danger full" onclick="checkoutTable(${index})">结账/记录</button>
         ` : `<button class="btn-ghost full" onclick="renameTable(${index})">修改桌名</button>`}
       </div>
     `;
     container.appendChild(card);
   });
-}
+};
 
 window.startTable = async function(index){
   const t = state.tables[index];
@@ -294,16 +323,17 @@ window.startTable = async function(index){
   t.pausedTotalMs = 0;
   t.pauseStartTime = null;
   t.extensionsUsed = [];
+  t.roundingUnit = 0;
   t.alerted = false;
   await saveCloud();
-}
+};
 
 window.pauseTable = async function(index){
   const t = state.tables[index];
   t.status = "paused";
   t.pauseStartTime = Date.now();
   await saveCloud();
-}
+};
 
 window.resumeTable = async function(index){
   const t = state.tables[index];
@@ -313,25 +343,45 @@ window.resumeTable = async function(index){
   t.status = "running";
   t.pauseStartTime = null;
   await saveCloud();
-}
+};
 
-window.addExtension = async function(tableIndex, extensionIndex){
-  const t = state.tables[tableIndex];
-  const e = state.extensions[extensionIndex];
+window.addPackageExtension = async function(index){
+  const t = state.tables[index];
+  const pkg = state.packages[t.packageIndex];
   t.extensionsUsed.push({
-    name:e.name,
-    minutes:Number(e.minutes),
-    price:Number(e.price),
-    addedAt:Date.now()
+    name: pkg.extensionName || "续费",
+    minutes: Number(pkg.extensionMinutes || 0),
+    price: Number(pkg.extensionPrice || 0),
+    packageName: pkg.name,
+    addedAt: Date.now()
   });
   t.alerted = false;
   await saveCloud();
-}
+};
+
+window.setRounding = async function(index,unit){
+  state.tables[index].roundingUnit = unit;
+  await saveCloud();
+};
 
 window.checkoutTable = async function(index){
   const t = state.tables[index];
   const pkg = state.packages[t.packageIndex];
-  if(!confirm(`${t.name} 要结账并保存收银记录吗？`)) return;
+
+  const text =
+`${t.name} 结账确认
+
+套餐：${pkg.name}
+套餐金额：¥${getPackagePrice(t).toLocaleString()}
+续费时间：${getExtensionMinutes(t)}分钟
+续费金额：¥${getExtensionAmount(t).toLocaleString()}
+原金额：¥${getRawTotal(t).toLocaleString()}
+抹零：-¥${getDiscountAmount(t).toLocaleString()}
+实收：¥${getRoundedTotal(t).toLocaleString()}
+
+确定保存收银记录并重置吗？`;
+
+  if(!confirm(text)) return;
 
   state.records.push({
     date: formatDate(Date.now()),
@@ -344,7 +394,10 @@ window.checkoutTable = async function(index){
     extensionMinutes: getExtensionMinutes(t),
     extensionAmount: getExtensionAmount(t),
     extensionDetail: t.extensionsUsed.map(e=>`${e.name}/${e.minutes}分钟/¥${e.price}`).join("；"),
-    totalAmount: getTotalPrice(t)
+    rawAmount: getRawTotal(t),
+    roundingUnit: t.roundingUnit || 0,
+    discountAmount: getDiscountAmount(t),
+    totalAmount: getRoundedTotal(t)
   });
 
   state.tables[index] = {
@@ -354,106 +407,102 @@ window.checkoutTable = async function(index){
     pausedTotalMs:0,
     pauseStartTime:null,
     extensionsUsed:[],
+    roundingUnit:0,
     alerted:false
   };
 
   await saveCloud();
-}
+};
 
 window.changePackage = async function(index, packageIndex){
   state.tables[index].packageIndex = Number(packageIndex);
+  state.tables[index].roundingUnit = 0;
   await saveCloud();
-}
+};
 
 window.renameTable = async function(index){
   const name = prompt("请输入桌位名称", state.tables[index].name);
   if(!name) return;
   state.tables[index].name = name.trim();
   await saveCloud();
-}
+};
 
 window.addTable = async function(){
   state.tables.push(newTable(state.tables.length + 1));
   await saveCloud();
-}
+};
 
 window.openSettings = function(){
   document.getElementById("tableCountInput").value = state.tables.length;
   renderPackageSettings();
-  renderExtensionSettings();
   document.getElementById("settingsDialog").showModal();
-}
+  enableInputOnTap(document.getElementById("settingsDialog"));
+};
 
 window.closeSettings = function(){
   document.getElementById("settingsDialog").close();
-}
+};
 
 function renderPackageSettings(){
   const box = document.getElementById("packageSettings");
   box.innerHTML = "";
+
   state.packages.forEach((pkg,index)=>{
     const row = document.createElement("div");
-    row.className = "setting-grid";
+    row.className = "setting-block";
     row.innerHTML = `
-      <div><label>套餐名</label><input value="${pkg.name}" data-pkg-name="${index}"></div>
-      <div><label>时长分钟，0=不限时</label><input type="number" min="0" value="${pkg.minutes}" data-pkg-minutes="${index}"></div>
-      <div><label>价格</label><input type="number" min="0" value="${pkg.price}" data-pkg-price="${index}"></div>
-      <button class="btn-danger" onclick="removePackageSetting(${index})">删除</button>
+      <div class="setting-grid">
+        <div><label>套餐名</label><input class="safe-input" value="${pkg.name}" data-pkg-name="${index}" readonly></div>
+        <div><label>套餐时长分钟，0=不限时</label><input class="safe-input" type="number" min="0" value="${pkg.minutes}" data-pkg-minutes="${index}" readonly></div>
+        <div><label>套餐金额</label><input class="safe-input" type="number" min="0" value="${pkg.price}" data-pkg-price="${index}" readonly></div>
+        <button class="btn-danger" onclick="removePackageSetting(${index})">删除</button>
+      </div>
+
+      <div class="setting-grid">
+        <div><label>续费按钮名称</label><input class="safe-input" value="${pkg.extensionName || "续费1小时"}" data-ext-name="${index}" readonly></div>
+        <div><label>续费时间分钟</label><input class="safe-input" type="number" min="0" value="${pkg.extensionMinutes || 0}" data-ext-minutes="${index}" readonly></div>
+        <div><label>续费金额</label><input class="safe-input" type="number" min="0" value="${pkg.extensionPrice || 0}" data-ext-price="${index}" readonly></div>
+        <div></div>
+      </div>
     `;
     box.appendChild(row);
   });
+
+  enableInputOnTap(box);
 }
 
 window.addPackageSetting = function(){
-  state.packages.push({name:"新套餐",minutes:60,price:0});
+  state.packages.push({
+    name:"新套餐",
+    minutes:60,
+    price:0,
+    extensionName:"续费1小时",
+    extensionMinutes:60,
+    extensionPrice:800
+  });
   renderPackageSettings();
-}
+};
 
 window.removePackageSetting = function(index){
-  if(state.packages.length <= 1){alert("至少保留一个套餐。");return;}
+  if(state.packages.length <= 1){
+    alert("至少保留一个套餐。");
+    return;
+  }
   state.packages.splice(index,1);
-  state.tables.forEach(t=>{if(t.packageIndex >= state.packages.length)t.packageIndex = 0;});
-  renderPackageSettings();
-}
-
-function renderExtensionSettings(){
-  const box = document.getElementById("extensionSettings");
-  box.innerHTML = "";
-  state.extensions.forEach((ext,index)=>{
-    const row = document.createElement("div");
-    row.className = "setting-grid";
-    row.innerHTML = `
-      <div><label>续费名称</label><input value="${ext.name}" data-ext-name="${index}"></div>
-      <div><label>续费分钟</label><input type="number" min="1" value="${ext.minutes}" data-ext-minutes="${index}"></div>
-      <div><label>续费金额</label><input type="number" min="0" value="${ext.price}" data-ext-price="${index}"></div>
-      <button class="btn-danger" onclick="removeExtensionSetting(${index})">删除</button>
-    `;
-    box.appendChild(row);
+  state.tables.forEach(t=>{
+    if(t.packageIndex >= state.packages.length) t.packageIndex = 0;
   });
-}
-
-window.addExtensionSetting = function(){
-  state.extensions.push({name:"续费1小时",minutes:60,price:800});
-  renderExtensionSettings();
-}
-
-window.removeExtensionSetting = function(index){
-  if(state.extensions.length <= 1){alert("至少保留一个续费选项。");return;}
-  state.extensions.splice(index,1);
-  renderExtensionSettings();
-}
+  renderPackageSettings();
+};
 
 window.saveSettings = async function(){
   state.packages = state.packages.map((pkg,index)=>({
     name: document.querySelector(`[data-pkg-name="${index}"]`).value || "未命名套餐",
     minutes: Number(document.querySelector(`[data-pkg-minutes="${index}"]`).value || 0),
-    price: Number(document.querySelector(`[data-pkg-price="${index}"]`).value || 0)
-  }));
-
-  state.extensions = state.extensions.map((ext,index)=>({
-    name: document.querySelector(`[data-ext-name="${index}"]`).value || "续费",
-    minutes: Number(document.querySelector(`[data-ext-minutes="${index}"]`).value || 0),
-    price: Number(document.querySelector(`[data-ext-price="${index}"]`).value || 0)
+    price: Number(document.querySelector(`[data-pkg-price="${index}"]`).value || 0),
+    extensionName: document.querySelector(`[data-ext-name="${index}"]`).value || "续费",
+    extensionMinutes: Number(document.querySelector(`[data-ext-minutes="${index}"]`).value || 0),
+    extensionPrice: Number(document.querySelector(`[data-ext-price="${index}"]`).value || 0)
   }));
 
   const count = Number(document.getElementById("tableCountInput").value || state.tables.length);
@@ -468,18 +517,35 @@ window.saveSettings = async function(){
 
   document.getElementById("settingsDialog").close();
   await saveCloud();
-}
+};
 
 window.exportRecords = function(){
-  if(!state.records.length){alert("目前还没有收银记录。");return;}
+  if(!state.records.length){
+    alert("目前还没有收银记录。");
+    return;
+  }
 
-  const headers = ["结账日期","桌位","开始时间","结账时间","套餐名称","套餐时间","套餐金额","续费时间","续费金额","续费明细","合计金额"];
+  const headers = [
+    "结账日期","桌位","开始时间","结账时间",
+    "套餐名称","套餐时间","套餐金额",
+    "续费时间","续费金额","续费明细",
+    "原金额","抹零单位","抹零金额","实收金额"
+  ];
+
   const rows = state.records.map(r=>[
-    r.date,r.tableName,r.startTime,r.checkoutTime,r.packageName,r.packageMinutes,
-    r.packagePrice,r.extensionMinutes,r.extensionAmount,r.extensionDetail,r.totalAmount
+    r.date,r.tableName,r.startTime,r.checkoutTime,
+    r.packageName,r.packageMinutes,r.packagePrice,
+    r.extensionMinutes,r.extensionAmount,r.extensionDetail,
+    r.rawAmount ?? r.totalAmount,
+    r.roundingUnit || 0,
+    r.discountAmount || 0,
+    r.totalAmount
   ]);
 
-  const csv = [headers,...rows].map(row=>row.map(cell=>`"${String(cell ?? "").replace(/"/g,'""')}"`).join(",")).join("\n");
+  const csv = [headers,...rows]
+    .map(row=>row.map(cell=>`"${String(cell ?? "").replace(/"/g,'""')}"`).join(","))
+    .join("\n");
+
   const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -489,7 +555,7 @@ window.exportRecords = function(){
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-}
+};
 
 function playAlert(){
   try{
